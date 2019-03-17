@@ -1,0 +1,39 @@
+html, body {
+    width:  100%;
+    height: 100%;
+    margin: 0;
+}
+
+#root {
+    width: 100%;
+}
+
+.scroll {
+    position: relative;
+    width: 100%;
+}
+
+.left_area {
+    position: absolute;
+    top: 0;
+    height: 100%;
+    background: rgba(240, 247, 250, 0.75);
+}
+
+.right_area {
+    position: absolute;
+    top: 0;
+    height: 100%;
+    background: rgba(240, 247, 255, 0.75);
+}
+
+.scroll-box {
+    position: absolute;
+    top: 0;
+    box-sizing: border-box;
+    border-top: 1px solid rgba(10, 10, 50, 0.1);
+    border-bottom: 1px solid rgba(10, 10, 50, 0.1);
+    border-left: 4px solid rgba(10, 10, 50, 0.1);
+    border-right: 4px solid rgba(10, 10, 50, 0.1);
+    height: 100%;
+}

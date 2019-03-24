@@ -1,7 +1,11 @@
 html, body {
     width:  100%;
-    height: 100%;
     margin: 0;
+}
+
+body {
+    font-family: Helvetica, sans-serif;
+    padding-bottom: 100px;
 }
 
 #root {
@@ -14,31 +18,46 @@ html, body {
     display: inline-block;
 }
 
+.chart-title {
+    margin: 10px;
+    margin-top: 25px;
+}
+
 .scroll {
     position: relative;
     width: 100%;
+    margin-top: 5px;
+    margin-bottom: 5px;
 }
 
 .left_area {
     position: absolute;
     top: 0;
     height: 100%;
-    background: rgba(240, 247, 250, 0.75);
 }
 
 .right_area {
     position: absolute;
     top: 0;
     height: 100%;
-    background: rgba(240, 247, 255, 0.75);
+}
+
+.day .left_area, .day .right_area {
+    background-color: rgba(229, 243, 247, 0.5);
+    transition: background-color 0.4s;
+}
+
+.night .left_area, .night .right_area {
+    background-color: rgba(28, 43, 53, 0.5);
+    transition: background-color 0.4s;
 }
 
 .scroll-box {
     position: absolute;
     top: 0;
     box-sizing: border-box;
-    border-top: 1px solid rgba(10, 10, 50, 0.1);
-    border-bottom: 1px solid rgba(10, 10, 50, 0.1);
+    border-top: 1px solid rgba(65, 150, 190, 0.2);
+    border-bottom: 1px solid rgba(65, 150, 190, 0.2);
     height: 100%;
     cursor: pointer;
 }
@@ -49,7 +68,17 @@ html, body {
     left: 0;
     height: 100%;
     width: 10px;
-    background-color: rgba(10, 10, 50, 0.1);
+    background-color: rgba(65, 150, 190, 0.2);
+    cursor: col-resize;
+}
+
+.scroll-box-border-left:before {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: -10px;
+    height: 100%;
+    width: 10px;
     cursor: col-resize;
 }
 
@@ -59,17 +88,28 @@ html, body {
     right: 0;
     height: 100%;
     width: 10px;
-    background-color: rgba(10, 10, 50, 0.1);
+    background-color: rgba(65, 150, 190, 0.2);
+    cursor: col-resize;
+}
+
+.scroll-box-border-right:after {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 10px;
+    height: 100%;
+    width: 10px;
     cursor: col-resize;
 }
 
 .checkbox {
     position: relative;
     display: inline-block;
-    border: 1px solid rgba(10, 10, 50, 0.1);
-    border-radius: 16px;
-    padding: 4px;
+    border: 1px solid rgba(65, 150, 190, 0.2);
+    border-radius: 19px;
     margin: 10px;
+    padding: 4px;
+    height: 28px;
 }
 
 .check {
@@ -79,81 +119,96 @@ html, body {
 }
 
 .sign {
+    position: relative;
+    display: inline-block;
+}
+
+.sign {
     position: absolute;
-    content: "";
     border-right: 2px solid #fff;
     border-bottom: 2px solid #fff;
     width: 6px;
     height: 10px;
-    left: 8px;
+    left: 12px;
+    top: 8px;
     margin: 2px;
     transform: rotate(45deg);
 }
 
-.check:checked + .sign-bg {
-    position: absolute;
-    content: "";
-    border: 2px solid;
-    border-radius: 16px;
+.check:checked + .sign-bg + .sign {
+    opacity: 0;
+    transition: opacity 0.3s;
+}
+
+.check:not(checked) + .sign-bg + .sign {
+    opacity: 1;
+    transition: opacity 0.4s;
+}
+
+.sign-bg {
+    position: relative;
+    display: inline-block;
+    border-radius: 12px;
     box-sizing: border-box;
-    width: 23px;
-    height: 23px;
-    left: 2px;
     top: 2px;
-    transition: border 0.2s;
+    left: 2px;
+    width: 24px;
+    height: 24px;
+}
+
+.check:checked + .sign-bg {
+    border: 2px solid;
+    transition: border 0.3s;
 }
 
 .check:not(checked) + .sign-bg {
-    position: absolute;
-    content: "";
-    border: 11.5px solid;
-    border-radius: 16px;
-    box-sizing: border-box;
-    width: 23px;
-    height: 23px;
-    left: 2px;
-    top: 2px;
-    transition: border 0.2s;
+    border: 12px solid;
+    transition: border 0.3s;
 }
 
 .label:after {
     position: absolute;
     content: "";
-    border-radius: 16px;
+    border-radius: 12px;
     box-sizing: border-box;
-    width: 23px;
-    height: 23px;
-    left: -26px;
-    top: -2px;
+    width: 24px;
+    height: 24px;
+    left: -32px;
+    top: -3px;
 }
 
 .label {
     position: relative;
     left: 10px;
-    margin: 15px;
     cursor: pointer;
-    font-family: Helvetica, sans-serif;
     font-size: 15px;
+    margin-right: 15px;
+    top: -4px;
 }
 
 .chart {
     position: relative;
+    margin-top: 5px;
+    margin-bottom: 5px;
 }
 
 .legend {
     position: absolute;
     display: inline-block;
     background: #fff;
-    box-shadow: 0px 1px 2px 0px rgb(146, 161, 168);
+    box-shadow: 0px 1px 3px 0px rgba(30, 30, 30, 0.2);
     border-radius: 5px;
     text-align: center;
     max-width: 40%;
 }
 
+.legend.night {
+    background-color: rgb(38, 54, 66);
+}
+
 .legend-title {
     position: relative;
     margin: 5px 10px;
-    font-family: Helvetica, sans-serif;
     font-size: 15px;
 }
 
@@ -167,14 +222,12 @@ html, body {
 
 .legend-value {
     text-align: left;
-    font-family: Helvetica, sans-serif;
     font-size: 15px;
     font-weight: bold;
 }
 
 .legend-label {
     text-align: left;
-    font-family: Helvetica, sans-serif;
     font-size: 12px;
     font-weight: normal;
 }
@@ -183,7 +236,7 @@ html, body {
     position: absolute;
     top: 0;
     width: 1px;
-    background: rgb(230, 230, 230);
+    background: rgba(145, 195, 215, 0.25);
 }
 
 .line-cross {
@@ -195,4 +248,28 @@ html, body {
     border-width: 2px;
     height: 10px;
     width: 10px;
+}
+
+.day {
+    background-color: #fff;
+    transition: background-color 0.4s, color 0.4s
+}
+
+.night {
+    background-color: #26333f;
+    color: white;
+    transition: background-color 0.4s, color 0.4s;
+}
+
+.night-switch {
+    position: fixed;
+    bottom: 0;
+    width: 100%;
+    text-align: center;
+    cursor: pointer;
+    padding: 10px;
+}
+
+.night-switch-text {
+    color: #00aceb;
 }

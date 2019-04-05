@@ -9,7 +9,11 @@ module.exports = {
     filename: 'bundle.js'
     },
     optimization: {
-    minimizer: [new UglifyJsPlugin({ sourceMap: true })],
+        minimizer: [
+            new UglifyJsPlugin({
+                sourceMap: true,
+            })
+        ],
     },
     module: {
         rules: [

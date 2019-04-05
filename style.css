@@ -180,7 +180,6 @@ body {
 .label {
     position: relative;
     left: 10px;
-    cursor: pointer;
     font-size: 15px;
     margin-right: 15px;
     top: -4px;

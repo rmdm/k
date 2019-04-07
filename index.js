@@ -1,13 +1,12 @@
 import Panel from './lib/panel'
 import Canvas from './lib/canvas'
 import Checkboxes from './lib/checkboxes'
-import Scrollbar from './lib/scrollbar'
 import ChartFactory from './lib/chart_factory'
 import NightSwitch from './lib/night_switch'
 
 import data from './data/chart_data.json'
 
-const factory = new ChartFactory(Panel, Canvas, Scrollbar, Checkboxes)
+const factory = new ChartFactory(Panel, Canvas, Checkboxes)
 
 let panels = []
 

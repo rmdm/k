@@ -142,6 +142,10 @@ function drawLines(ctx, x, lines, lineStates, lineGrades, lineColors, width, hei
   }
 }
 function drawLine(ctx, x, line, grade, color, width, height, offsetW, offsetH, bottomGraphOffsetH, left, right, dX, maxHeight, minHeight, lineWidth, zoomGrade, inOut) {
+  if (minHeight > maxHeight) {
+    return;
+  }
+
   var dRange = (right - left) / 2 * (1 - zoomGrade);
   var dx = dX * (1 - zoomGrade);
   left = left + dRange;
@@ -218,7 +222,15 @@ function ceilTo(val, mod) {
   return ((val / mod | 0) + 1) * mod;
 }
 
-function drawGrid(ctx, offsetW, offsetH, width, height, nlines, fromMax, toMax, currentMax, fromMin, toMin, currentMin, lineMax, lineMin, topOffset, bottomOffset, getColor, getYColor, fromRight, lineWidth, textSize, nightGrade, zoomGrade) {
+function drawGrid(ctx, offsetW, offsetH, width, height, nlines, fromMax, toMax, currentMax, fromMin, toMin, currentMin, lineMax, lineMin, topOffset, bottomOffset, getColor, getYColor, fromRight, lineGrade, lineWidth, textSize, nightGrade, zoomGrade) {
+  if (toMin > toMax) {
+    return;
+  }
+
+  if (lineGrade === 0) {
+    return;
+  }
+
   var topLineOffset = height - topOffset;
   var scale = (topLineOffset - bottomOffset) / (currentMax - currentMin);
   var fromCurTop = topLineOffset - (currentMax - fromMax) * scale;
@@ -455,12 +467,16 @@ function drawCheckbox(ctx, offsetW, offsetH, width, height, radius, text, textWi
 var legendPadding = fromCssSize(10);
 var legendOffset = fromCssSize(10);
 var crossRadius = fromCssSize(4);
-function drawLinesLegend(ctx, x, lines, lineLabels, lineStates, lineGrades, lineColors, lineWidth, rullerWidth, position, closestIndex, offsetW, offsetH, topGraphOffsetH, bottomGraphOffsetH, width, height, left, right, range, currentMaxHeight, currentMinHeight, xDiff, textSize, textFont, getRullerColor, getLegendColor, getLegendBorderColor, getLegendFontColor, getBackgroundColor, alphaGrade, nightGrade, coordinates, zoomGrade, format, drawArrow) {
-  if (currentMaxHeight === 0) {
-    return;
-  }
-
-  var scaleY = (height - topGraphOffsetH - bottomGraphOffsetH) / (currentMaxHeight - currentMinHeight);
+function drawRuller(ctx, offsetW, offsetH, rullerWidth, rullerHeight, width, left, right, range, position, getRullerColor, alphaGrade, nightGrade) {
+  var leftOffset = offsetW + (position - left) / range * width;
+  ctx.lineWidth = rullerWidth;
+  ctx.strokeStyle = getRullerColor(nightGrade, alphaGrade);
+  ctx.beginPath();
+  ctx.moveTo(leftOffset, offsetH);
+  ctx.lineTo(leftOffset, offsetH + rullerHeight);
+  ctx.stroke();
+}
+function drawLinesLegend(ctx, x, lineKinds, lineLabels, lineStates, lineGrades, lineColors, lineWidth, position, closestIndex, offsetW, offsetH, left, right, range, width, height, xDiff, paramKinds, textSize, textFont, getLegendColor, getLegendBorderColor, getLegendFontColor, getBackgroundColor, alphaGrade, nightGrade, coordinates, zoomGrade, format, drawArrow) {
   var ctxFont = ctx.font;
   var legendFont = textSize + 'px ' + textFont;
   var timestamp = Math.floor(x[1] + xDiff * position);
@@ -470,63 +486,70 @@ function drawLinesLegend(ctx, x, lines, lineLabels, lineStates, lineGrades, line
   var contentWidth = ctx.measureText(text).width + 3 * legendPadding;
   var contentHeight = textSize;
   var maxValueWidth = 0;
-  var lowestTopOffset = topGraphOffsetH + height;
-  var _iteratorNormalCompletion3 = true;
-  var _didIteratorError3 = false;
-  var _iteratorError3 = undefined;
+  var lowestTopOffset = height;
 
-  try {
-    for (var _iterator3 = lines[Symbol.iterator](), _step3; !(_iteratorNormalCompletion3 = (_step3 = _iterator3.next()).done); _iteratorNormalCompletion3 = true) {
-      var line = _step3.value;
-      var label = line[0];
+  for (var i = 0; i < lineKinds.length; i++) {
+    var lines = lineKinds[i];
+    var _iteratorNormalCompletion3 = true;
+    var _didIteratorError3 = false;
+    var _iteratorError3 = undefined;
 
-      if (lineStates[label] || lineGrades[label] > 0) {
-        var val = line[closestIndex];
-        var name = lineLabels[label];
-        ctx.font = legendFont;
-        var nameWidth = ctx.measureText(name).width;
-        ctx.font = 'bold ' + legendFont;
-        var valWidth = ctx.measureText(val).width;
-        contentHeight += legendPadding + textSize;
-
-        var _lineWidth = valWidth + nameWidth + legendPadding;
-
-        if (_lineWidth > contentWidth) {
-          contentWidth = _lineWidth;
-        }
-
-        if (valWidth > maxValueWidth) {
-          maxValueWidth = valWidth;
-        }
-
-        var approxValue = val;
-
-        if (x[closestIndex] > timestamp) {
-          var lowerIndex = Math.max(1, closestIndex - 1);
-          approxValue = approximateHeight(x, line, timestamp, lowerIndex, closestIndex);
-        } else if (x[closestIndex] < timestamp) {
-          var upperIndex = Math.min(x.length - 1, closestIndex + 1);
-          approxValue = approximateHeight(x, line, timestamp, closestIndex, upperIndex);
-        }
-
-        var topOffset = height - (approxValue - currentMinHeight) * scaleY;
-
-        if (topOffset < lowestTopOffset) {
-          lowestTopOffset = topOffset;
-        }
-      }
-    }
-  } catch (err) {
-    _didIteratorError3 = true;
-    _iteratorError3 = err;
-  } finally {
     try {
-      if (!_iteratorNormalCompletion3 && _iterator3.return != null) {
-        _iterator3.return();
+      for (var _iterator3 = lines[Symbol.iterator](), _step3; !(_iteratorNormalCompletion3 = (_step3 = _iterator3.next()).done); _iteratorNormalCompletion3 = true) {
+        var line = _step3.value;
+        var label = line[0];
+
+        if (lineStates[label] || lineGrades[label] > 0) {
+          var val = line[closestIndex];
+          var name = lineLabels[label];
+          ctx.font = legendFont;
+          var nameWidth = ctx.measureText(name).width;
+          ctx.font = 'bold ' + legendFont;
+          var valWidth = ctx.measureText(val).width;
+          contentHeight += legendPadding + textSize;
+
+          var _lineWidth = valWidth + nameWidth + legendPadding;
+
+          if (_lineWidth > contentWidth) {
+            contentWidth = _lineWidth;
+          }
+
+          if (valWidth > maxValueWidth) {
+            maxValueWidth = valWidth;
+          }
+
+          var approxValue = val;
+
+          if (x[closestIndex] > timestamp) {
+            var lowerIndex = Math.max(1, closestIndex - 1);
+            approxValue = approximateHeight(x, line, timestamp, lowerIndex, closestIndex);
+          } else if (x[closestIndex] < timestamp) {
+            var upperIndex = Math.min(x.length - 1, closestIndex + 1);
+            approxValue = approximateHeight(x, line, timestamp, closestIndex, upperIndex);
+          }
+
+          var param = paramKinds[i]; // const topOffset = height - (approxValue - currentMinHeight) * (height - topGraphOffsetH - bottomGraphOffsetH) / (currentMaxHeight - currentMinHeight)
+          // top, bottom, max, min
+
+          var topOffset = height - (approxValue - param[3]) * (height - param[0] - param[1]) / (param[2] - param[3]);
+
+          if (topOffset < lowestTopOffset) {
+            lowestTopOffset = topOffset;
+          }
+        }
       }
+    } catch (err) {
+      _didIteratorError3 = true;
+      _iteratorError3 = err;
     } finally {
-      if (_didIteratorError3) {
-        throw _iteratorError3;
+      try {
+        if (!_iteratorNormalCompletion3 && _iterator3.return != null) {
+          _iterator3.return();
+        }
+      } finally {
+        if (_didIteratorError3) {
+          throw _iteratorError3;
+        }
       }
     }
   }
@@ -534,12 +557,6 @@ function drawLinesLegend(ctx, x, lines, lineLabels, lineStates, lineGrades, line
   var legendWidth = contentWidth + 2 * legendPadding;
   var legendHeight = contentHeight + 2 * legendPadding;
   var legendOffsetLeft = leftOffset - legendWidth / 2;
-  ctx.lineWidth = rullerWidth;
-  ctx.strokeStyle = getRullerColor(nightGrade, alphaGrade);
-  ctx.beginPath();
-  ctx.moveTo(leftOffset, offsetH + topGraphOffsetH);
-  ctx.lineTo(leftOffset, offsetH + height);
-  ctx.stroke();
   var additionalOffset = 0;
 
   if (lowestTopOffset - legendPadding < offsetH + legendHeight) {
@@ -561,10 +578,11 @@ function drawLinesLegend(ctx, x, lines, lineLabels, lineStates, lineGrades, line
   legendOffsetLeft += additionalOffset;
   ctx.fillStyle = getLegendColor(nightGrade, alphaGrade);
   ctx.strokeStyle = getLegendBorderColor(alphaGrade);
+  ctx.lineWidth = 1;
   ctx.beginPath();
   coordinates.x = legendOffsetLeft;
   coordinates.toX = coordinates.x + legendWidth;
-  coordinates.y = offsetH + topGraphOffsetH;
+  coordinates.y = offsetH;
   coordinates.toY = coordinates.y + legendHeight;
   drawRoundedRect(ctx, coordinates.x, coordinates.toX, coordinates.y, coordinates.toY, controlRadius, controlRadius);
   ctx.closePath();
@@ -589,47 +607,43 @@ function drawLinesLegend(ctx, x, lines, lineLabels, lineStates, lineGrades, line
   var _iteratorError4 = undefined;
 
   try {
-    for (var _iterator4 = lines[Symbol.iterator](), _step4; !(_iteratorNormalCompletion4 = (_step4 = _iterator4.next()).done); _iteratorNormalCompletion4 = true) {
-      var _line = _step4.value;
-      var _label = _line[0];
+    for (var _iterator4 = lineKinds[Symbol.iterator](), _step4; !(_iteratorNormalCompletion4 = (_step4 = _iterator4.next()).done); _iteratorNormalCompletion4 = true) {
+      var _lines = _step4.value;
+      var _iteratorNormalCompletion5 = true;
+      var _didIteratorError5 = false;
+      var _iteratorError5 = undefined;
 
-      if (lineStates[_label] || lineGrades[_label] > 0) {
-        var value = _line[closestIndex];
-        var _name = lineLabels[_label];
-        ctx.font = legendFont;
-        ctx.fillStyle = getLegendFontColor(nightGrade, lineGrades[_label] * alphaGrade);
-        ctx.fillText(_name, coordinates.x + legendPadding, textOffsetH);
-        ctx.font = 'bold ' + legendFont;
-        ctx.fillStyle = lineColors[_label](lineGrades[_label] * zoomGrade);
-        ctx.strokeStyle = ctx.fillStyle;
-        var _valWidth = ctx.measureText(value).width;
-        ctx.fillText(value, coordinates.x + legendPadding + contentWidth - _valWidth, textOffsetH);
-        textOffsetH += legendPadding + textSize;
+      try {
+        for (var _iterator5 = _lines[Symbol.iterator](), _step5; !(_iteratorNormalCompletion5 = (_step5 = _iterator5.next()).done); _iteratorNormalCompletion5 = true) {
+          var _line = _step5.value;
+          var _label = _line[0];
 
-        if (zoomGrade < 1) {
-          continue;
+          if (lineStates[_label] || lineGrades[_label] > 0) {
+            var value = _line[closestIndex];
+            var _name = lineLabels[_label];
+            ctx.font = legendFont;
+            ctx.fillStyle = getLegendFontColor(nightGrade, lineGrades[_label] * alphaGrade);
+            ctx.fillText(_name, coordinates.x + legendPadding, textOffsetH);
+            ctx.font = 'bold ' + legendFont;
+            ctx.fillStyle = lineColors[_label](lineGrades[_label] * zoomGrade);
+            var _valWidth = ctx.measureText(value).width;
+            ctx.fillText(value, coordinates.x + legendPadding + contentWidth - _valWidth, textOffsetH);
+            textOffsetH += legendPadding + textSize;
+          }
         }
-
-        var _approxValue = value;
-
-        if (x[closestIndex] > timestamp) {
-          var _lowerIndex = Math.max(1, closestIndex - 1);
-
-          _approxValue = approximateHeight(x, _line, timestamp, _lowerIndex, closestIndex);
-        } else if (x[closestIndex] < timestamp) {
-          var _upperIndex = Math.min(x.length - 1, closestIndex + 1);
-
-          _approxValue = approximateHeight(x, _line, timestamp, closestIndex, _upperIndex);
+      } catch (err) {
+        _didIteratorError5 = true;
+        _iteratorError5 = err;
+      } finally {
+        try {
+          if (!_iteratorNormalCompletion5 && _iterator5.return != null) {
+            _iterator5.return();
+          }
+        } finally {
+          if (_didIteratorError5) {
+            throw _iteratorError5;
+          }
         }
-
-        var _topOffset = offsetH + height - bottomGraphOffsetH - (_approxValue - currentMinHeight) * scaleY;
-
-        ctx.fillStyle = getBackgroundColor(nightGrade);
-        ctx.lineWidth = lineWidth;
-        ctx.beginPath();
-        ctx.arc(leftOffset, _topOffset, crossRadius, 0, 2 * Math.PI);
-        ctx.fill();
-        ctx.stroke();
       }
     }
   } catch (err) {
@@ -648,6 +662,42 @@ function drawLinesLegend(ctx, x, lines, lineLabels, lineStates, lineGrades, line
   }
 
   ctx.font = ctxFont;
+}
+function drawLinesCross(ctx, x, line, lineLabels, lineStates, lineGrades, lineColors, lineWidth, position, closestIndex, offsetW, offsetH, left, right, range, width, height, xDiff, topGraphOffsetH, bottomGraphOffsetH, currentMaxHeight, currentMinHeight, getBackgroundColor, nightGrade, zoomGrade) {
+  if (zoomGrade < 1) {
+    return;
+  }
+
+  if (currentMinHeight >= currentMaxHeight) {
+    return;
+  }
+
+  var label = line[0];
+  var scaleY = (height - topGraphOffsetH - bottomGraphOffsetH) / (currentMaxHeight - currentMinHeight);
+  var leftOffset = offsetW + (position - left) / range * width;
+  var timestamp = Math.floor(x[1] + xDiff * position);
+
+  if (lineStates[label] || lineGrades[label] > 0) {
+    var value = line[closestIndex];
+    ctx.strokeStyle = lineColors[label](lineGrades[label] * zoomGrade);
+    var approxValue = value;
+
+    if (x[closestIndex] > timestamp) {
+      var lowerIndex = Math.max(1, closestIndex - 1);
+      approxValue = approximateHeight(x, line, timestamp, lowerIndex, closestIndex);
+    } else if (x[closestIndex] < timestamp) {
+      var upperIndex = Math.min(x.length - 1, closestIndex + 1);
+      approxValue = approximateHeight(x, line, timestamp, closestIndex, upperIndex);
+    }
+
+    var topOffset = offsetH + height - bottomGraphOffsetH - (approxValue - currentMinHeight) * scaleY;
+    ctx.fillStyle = getBackgroundColor(nightGrade);
+    ctx.lineWidth = lineWidth;
+    ctx.beginPath();
+    ctx.arc(leftOffset, topOffset, crossRadius, 0, 2 * Math.PI);
+    ctx.fill();
+    ctx.stroke();
+  }
 }
 
 function approximateHeight(x, line, timestamp, lowerIndex, upperIndex) {
@@ -749,45 +799,6 @@ function getMaxY(x, lines, lineStates, left, right) {
   var max = 0;
   var from = getLowerIndex(x, left);
   var to = getUpperIndex(x, right);
-  var _iteratorNormalCompletion5 = true;
-  var _didIteratorError5 = false;
-  var _iteratorError5 = undefined;
-
-  try {
-    for (var _iterator5 = lines[Symbol.iterator](), _step5; !(_iteratorNormalCompletion5 = (_step5 = _iterator5.next()).done); _iteratorNormalCompletion5 = true) {
-      var line = _step5.value;
-
-      if (!lineStates[line[0]]) {
-        continue;
-      }
-
-      for (var i = from; i < to; i++) {
-        if (line[i] > max) {
-          max = line[i];
-        }
-      }
-    }
-  } catch (err) {
-    _didIteratorError5 = true;
-    _iteratorError5 = err;
-  } finally {
-    try {
-      if (!_iteratorNormalCompletion5 && _iterator5.return != null) {
-        _iterator5.return();
-      }
-    } finally {
-      if (_didIteratorError5) {
-        throw _iteratorError5;
-      }
-    }
-  }
-
-  return max;
-}
-function getMinY(x, lines, lineStates, left, right) {
-  var min = Infinity;
-  var from = getLowerIndex(x, left);
-  var to = getUpperIndex(x, right);
   var _iteratorNormalCompletion6 = true;
   var _didIteratorError6 = false;
   var _iteratorError6 = undefined;
@@ -801,8 +812,8 @@ function getMinY(x, lines, lineStates, left, right) {
       }
 
       for (var i = from; i < to; i++) {
-        if (line[i] < min) {
-          min = line[i];
+        if (line[i] > max) {
+          max = line[i];
         }
       }
     }
@@ -817,6 +828,45 @@ function getMinY(x, lines, lineStates, left, right) {
     } finally {
       if (_didIteratorError6) {
         throw _iteratorError6;
+      }
+    }
+  }
+
+  return max;
+}
+function getMinY(x, lines, lineStates, left, right) {
+  var min = Infinity;
+  var from = getLowerIndex(x, left);
+  var to = getUpperIndex(x, right);
+  var _iteratorNormalCompletion7 = true;
+  var _didIteratorError7 = false;
+  var _iteratorError7 = undefined;
+
+  try {
+    for (var _iterator7 = lines[Symbol.iterator](), _step7; !(_iteratorNormalCompletion7 = (_step7 = _iterator7.next()).done); _iteratorNormalCompletion7 = true) {
+      var line = _step7.value;
+
+      if (!lineStates[line[0]]) {
+        continue;
+      }
+
+      for (var i = from; i < to; i++) {
+        if (line[i] < min) {
+          min = line[i];
+        }
+      }
+    }
+  } catch (err) {
+    _didIteratorError7 = true;
+    _iteratorError7 = err;
+  } finally {
+    try {
+      if (!_iteratorNormalCompletion7 && _iterator7.return != null) {
+        _iterator7.return();
+      }
+    } finally {
+      if (_didIteratorError7) {
+        throw _iteratorError7;
       }
     }
   }
@@ -937,7 +987,7 @@ function () {
         for (var uniqName in _this.animations) {
           var anim = _this.animations[uniqName];
 
-          if (!anim || anim.from === anim.to) {
+          if (!anim || anim.from === anim.to || anim.from === Infinity || anim.to === Infinity) {
             _this.animations[uniqName] = null;
             continue;
           }
@@ -1027,17 +1077,6 @@ function _setPrototypeOf(o, p) { _setPrototypeOf = Object.setPrototypeOf || func
 
 
 
-var animationDurationMs = 250;
-var getGridColor = animatableHexColor('#182D3B', 0.1, '#FFFFFF', 0.1);
-var getAxisColor = animatableHexColor('#8E8E93', 1, '#A3B1C2', 0.6);
-var getRullerColor = animatableHexColor('#182D3B', 0.1, '#FFFFFF', 0.1);
-var getLegendBorderColor = animatableAlphaHEXcolor('#1E1E1E', 0.2);
-var getLegendFontColor = animatableHexColor('#000000', 1, '#FFFFFF', 1);
-var getLegendColor = animatableHexColor('#FFFFFF', 1, '#1F2A35', 1);
-var getBackgroundColor = animatableHexColor('#FFFFFF', 1, '#26333F', 1);
-var getPreviewBlurColor = animatableHexColor('#E2EEF9', 0.6, '#304259', 0.6);
-var getPreviewControlColor = animatableHexColor('#C0D1E1', 1, '#56626D', 1);
-var getZoomOutColor = animatableHexColor('#108BE3', 1, '#48AAF0', 1);
 
 var line_LineChart =
 /*#__PURE__*/
@@ -1138,6 +1177,17 @@ function (_AnimatableChart) {
       return _this.onTouchEnd(e);
     });
 
+    _this.animationDurationMs = 250;
+    _this.getGridColor = animatableHexColor('#182D3B', 0.1, '#FFFFFF', 0.1);
+    _this.getAxisColor = animatableHexColor('#8E8E93', 1, '#A3B1C2', 0.6);
+    _this.getRullerColor = animatableHexColor('#182D3B', 0.1, '#FFFFFF', 0.1);
+    _this.getLegendBorderColor = animatableAlphaHEXcolor('#1E1E1E', 0.2);
+    _this.getLegendFontColor = animatableHexColor('#000000', 1, '#FFFFFF', 1);
+    _this.getLegendColor = animatableHexColor('#FFFFFF', 1, '#1F2A35', 1);
+    _this.getBackgroundColor = animatableHexColor('#FFFFFF', 1, '#26333F', 1);
+    _this.getPreviewBlurColor = animatableHexColor('#E2EEF9', 0.6, '#304259', 0.6);
+    _this.getPreviewControlColor = animatableHexColor('#C0D1E1', 1, '#56626D', 1);
+    _this.getZoomOutColor = animatableHexColor('#108BE3', 1, '#48AAF0', 1);
     return _this;
   }
 
@@ -1206,15 +1256,15 @@ function (_AnimatableChart) {
     value: function toggle(label) {
       this.lineStates[label] = !this.lineStates[label];
       var to = +this.lineStates[label];
-      this.addAnimation(this.lineGrades, label, to, animationDurationMs);
-      this.addAnimation(this.checkboxes[this.checkboxLabelToIndex[label]], 'grade', to, animationDurationMs, 'checkbox_' + label);
+      this.addAnimation(this.lineGrades, label, to, this.animationDurationMs);
+      this.addAnimation(this.checkboxes[this.checkboxLabelToIndex[label]], 'grade', to, this.animationDurationMs, 'checkbox_' + label);
       this.animate();
     }
   }, {
     key: "zoom",
     value: function zoom(index, direction) {
       if (direction) {
-        this.addAnimation(this, 'zoomFromGrade', 0, animationDurationMs);
+        this.addAnimation(this, 'zoomFromGrade', 0, this.animationDurationMs);
 
         if (index !== this.zoomedIndex) {
           this.zoomedData = this.getDetails(index);
@@ -1222,12 +1272,12 @@ function (_AnimatableChart) {
         }
 
         this.ref = this.zoomedData;
-        this.addAnimation(this, 'zoomToGrade', 1, animationDurationMs);
+        this.addAnimation(this, 'zoomToGrade', 1, this.animationDurationMs);
         this.zoomState = 'details';
       } else {
         this.ref = this;
-        this.addAnimation(this, 'zoomFromGrade', 1, animationDurationMs);
-        this.addAnimation(this, 'zoomToGrade', 0, animationDurationMs);
+        this.addAnimation(this, 'zoomFromGrade', 1, this.animationDurationMs);
+        this.addAnimation(this, 'zoomToGrade', 0, this.animationDurationMs);
         this.zoomState = 'overview';
       }
 
@@ -1240,17 +1290,17 @@ function (_AnimatableChart) {
 
       if (this.zoomFromGrade > 0) {
         this.calc(this);
-        drawHeader(this.ctx, this.padW, 0, this.headerHeight, this.headerFontSize, this.textFont, this.headerText, getLegendFontColor, this.nightGrade, this.zoomFromGrade);
-        drawDateRangeSummary(this.ctx, this.padW, 0, this.chartWidth, this.headerHeight, this.headerFontSize, this.x[1], this.xDiff, this.currentLeft, this.currentRight, true, this.dateRangeFontSize, this.textFont, getLegendFontColor, this.nightGrade, this.zoomFromGrade);
-        this.drawLineChart(this.x, this.lines, this.fromMaxHeight, this.toMaxHeight, this.currentMaxHeight, this.fromMinHeight, this.toMinHeight, this.currentMinHeight, this.maxHeight, this.minHeight, this.currentLeft, this.currentRight, this.currentRange, this.xDiff, this.legendShown, this.legendPosition, this.pickedIndex, this.legendCoordinates, false, 'monthdate', 'shortweekdate', this.yAlign, this.zoomFromGrade);
+        drawHeader(this.ctx, this.padW, 0, this.headerHeight, this.headerFontSize, this.textFont, this.headerText, this.getLegendFontColor, this.nightGrade, this.zoomFromGrade);
+        drawDateRangeSummary(this.ctx, this.padW, 0, this.chartWidth, this.headerHeight, this.headerFontSize, this.x[1], this.xDiff, this.currentLeft, this.currentRight, true, this.dateRangeFontSize, this.textFont, this.getLegendFontColor, this.nightGrade, this.zoomFromGrade);
+        this.drawLineChart(this, false, 'monthdate', 'shortweekdate', this.zoomFromGrade);
       }
 
       if (this.zoomToGrade > 0) {
         var details = this.zoomedData;
         this.calc(details);
-        drawZoomOutControl(this.ctx, this.padW, 0, this.headerHeight, this.headerFontSize, this.textFont, getZoomOutColor, this.nightGrade, this.zoomToGrade, this.zoomOutCoords);
-        drawDateRangeSummary(this.ctx, this.padW, 0, this.chartWidth, this.headerHeight, this.headerFontSize, details.x[1], details.xDiff, details.currentLeft, details.currentRight, false, this.dateRangeFontSize, this.textFont, getLegendFontColor, this.nightGrade, this.zoomToGrade);
-        this.drawLineChart(details.x, details.lines, details.fromMaxHeight, details.toMaxHeight, details.currentMaxHeight, details.fromMinHeight, details.toMinHeight, details.currentMinHeight, details.maxHeight, details.minHeight, details.currentLeft, details.currentRight, details.currentRange, details.xDiff, details.legendShown, details.legendPosition, details.pickedIndex, details.legendCoordinates, true, 'hours', 'hours', details.yAlign, this.zoomToGrade);
+        drawZoomOutControl(this.ctx, this.padW, 0, this.headerHeight, this.headerFontSize, this.textFont, this.getZoomOutColor, this.nightGrade, this.zoomToGrade, this.zoomOutCoords);
+        drawDateRangeSummary(this.ctx, this.padW, 0, this.chartWidth, this.headerHeight, this.headerFontSize, details.x[1], details.xDiff, details.currentLeft, details.currentRight, false, this.dateRangeFontSize, this.textFont, this.getLegendFontColor, this.nightGrade, this.zoomToGrade);
+        this.drawLineChart(details, true, 'hours', 'hours', this.zoomToGrade);
       } // redraw only if checked
 
 
@@ -1258,22 +1308,42 @@ function (_AnimatableChart) {
     }
   }, {
     key: "drawLineChart",
-    value: function drawLineChart(x, lines, fromMaxHeight, toMaxHeight, currentMaxHeight, fromMinHeight, toMinHeight, currentMinHeight, maxHeight, minHeight, currentLeft, currentRight, currentRange, xDiff, legendShown, legendPosition, pickedIndex, legendCoordinates, shrink, yAxisdateFormat, legendDateFormat, yAlign, zoomGrade) {
-      drawGrid(this.ctx, this.padW, this.headerHeight, this.chartWidth, this.chartHeight + this.padH, 5, fromMaxHeight, toMaxHeight, currentMaxHeight, fromMinHeight, toMinHeight, currentMinHeight, yAlign.max, yAlign.min, yAlign.top, yAlign.bottom, getGridColor, getAxisColor, false, this.gridLineWidth, this.textSize, this.nightGrade, zoomGrade); // drawYValues()
-      // drawGrid(this.ctx, this.padW, this.headerHeight, this.padH, 0, this.chartWidth, this.chartHeight, 5,
-      //     fromMaxHeight, toMaxHeight, currentMaxHeight,
-      //     fromMinHeight, toMinHeight, currentMinHeight,
-      //     getGridColor, getAxisColor, this.gridLineWidth, this.textSize, this.nightGrade, zoomGrade)
+    value: function drawLineChart(ref, shrink, yAxisdateFormat, legendDateFormat, zoomGrade) {
+      drawGrid(this.ctx, this.padW, this.headerHeight, this.chartWidth, this.chartHeight + this.padH, 5, ref.fromMaxHeight, ref.toMaxHeight, ref.currentMaxHeight, ref.fromMinHeight, ref.toMinHeight, ref.currentMinHeight, ref.yAlign.max, ref.yAlign.min, ref.yAlign.top, ref.yAlign.bottom, this.getGridColor, this.getAxisColor, false, 1, this.gridLineWidth, this.textSize, this.nightGrade, zoomGrade);
+      drawLines(this.ctx, ref.x, ref.lines, this.lineStates, this.lineGrades, this.lineColors, this.chartWidth, this.chartHeight + this.padH - ref.yAlign.top, this.padW, this.headerHeight + ref.yAlign.top, ref.yAlign.bottom, ref.currentLeft, ref.currentRight, ref.xDiff * ref.currentRange, ref.currentMaxHeight, ref.currentMinHeight, this.lineWidth, zoomGrade, shrink); // redraw only if moving
 
-      drawLines(this.ctx, x, lines, this.lineStates, this.lineGrades, this.lineColors, this.chartWidth, this.chartHeight + this.padH - yAlign.top, this.padW, this.headerHeight + yAlign.top, yAlign.bottom, currentLeft, currentRight, xDiff * currentRange, currentMaxHeight, currentMinHeight, this.lineWidth, zoomGrade, shrink); // redraw only if moving
+      drawDates(this.ctx, this.padW, this.datesOffsetH, this.chartWidth / ref.currentRange, ref.x[1], ref.xDiff, yAxisdateFormat, ref.currentLeft, ref.currentRight, this.fromPeriod, this.toPeriod, this.datesGrade, this.getAxisColor, this.nightGrade, zoomGrade);
+      drawLines(this.ctx, ref.x, ref.lines, this.lineStates, this.lineGrades, this.lineColors, this.chartWidth, this.previewHeight, this.padW, this.previewOffsetH, 0, 0, 1, ref.xDiff, ref.maxHeight, ref.minHeight, this.previewLineWidth, zoomGrade, shrink); // redraw only if moving or checked
 
-      drawDates(this.ctx, this.padW, this.datesOffsetH, this.chartWidth / currentRange, x[1], xDiff, yAxisdateFormat, currentLeft, currentRight, this.fromPeriod, this.toPeriod, this.datesGrade, getAxisColor, this.nightGrade, zoomGrade);
-      drawLines(this.ctx, x, lines, this.lineStates, this.lineGrades, this.lineColors, this.chartWidth, this.previewHeight, this.padW, this.previewOffsetH, 0, 0, 1, xDiff, maxHeight, minHeight, this.previewLineWidth, zoomGrade, shrink); // redraw only if moving or checked
+      drawScrollControlls(this.ctx, this.padW, this.previewOffsetH, this.chartWidth, this.previewHeight, ref.currentLeft, ref.currentRight, this.getPreviewBlurColor, this.getPreviewControlColor, this.nightGrade, zoomGrade);
 
-      drawScrollControlls(this.ctx, this.padW, this.previewOffsetH, this.chartWidth, this.previewHeight, currentLeft, currentRight, getPreviewBlurColor, getPreviewControlColor, this.nightGrade, zoomGrade);
+      if (ref.legendShown && (zoomGrade < 1 || ref.legendPosition >= ref.currentLeft && ref.legendPosition <= ref.currentRight)) {
+        drawRuller(this.ctx, this.padW, this.headerHeight + this.padH, this.rullerWidth, this.chartHeight, this.chartWidth, ref.currentLeft, ref.currentRight, ref.currentRange, ref.legendPosition, this.getRullerColor, zoomGrade, this.nightGrade);
+        var _iteratorNormalCompletion = true;
+        var _didIteratorError = false;
+        var _iteratorError = undefined;
 
-      if (legendShown && (zoomGrade < 1 || legendPosition >= currentLeft && legendPosition <= currentRight)) {
-        drawLinesLegend(this.ctx, x, lines, this.lineLabels, this.lineStates, this.lineGrades, this.lineColors, this.lineWidth, this.rullerWidth, legendPosition, pickedIndex, this.padW, this.headerHeight, yAlign.top, yAlign.bottom, this.chartWidth, this.chartHeight + this.padH, currentLeft, currentRight, currentRange, currentMaxHeight, currentMinHeight, xDiff, this.legendTextSize, this.textFont, getRullerColor, getLegendColor, getLegendBorderColor, getLegendFontColor, getBackgroundColor, zoomGrade, this.nightGrade, legendCoordinates, zoomGrade, legendDateFormat, this.zoomState === 'overview');
+        try {
+          for (var _iterator = ref.lines[Symbol.iterator](), _step; !(_iteratorNormalCompletion = (_step = _iterator.next()).done); _iteratorNormalCompletion = true) {
+            var line = _step.value;
+            drawLinesCross(this.ctx, ref.x, line, this.lineLabels, this.lineStates, this.lineGrades, this.lineColors, this.lineWidth, ref.legendPosition, ref.pickedIndex, this.padW, this.headerHeight, ref.currentLeft, ref.currentRight, ref.currentRange, this.chartWidth, this.chartHeight + this.padH, ref.xDiff, ref.yAlign.top, ref.yAlign.bottom, ref.currentMaxHeight, ref.currentMinHeight, this.getBackgroundColor, this.nightGrade, zoomGrade);
+          }
+        } catch (err) {
+          _didIteratorError = true;
+          _iteratorError = err;
+        } finally {
+          try {
+            if (!_iteratorNormalCompletion && _iterator.return != null) {
+              _iterator.return();
+            }
+          } finally {
+            if (_didIteratorError) {
+              throw _iteratorError;
+            }
+          }
+        }
+
+        drawLinesLegend(this.ctx, ref.x, [ref.lines], this.lineLabels, this.lineStates, this.lineGrades, this.lineColors, this.lineWidth, ref.legendPosition, ref.pickedIndex, this.padW, this.headerHeight + this.padH, ref.currentLeft, ref.currentRight, ref.currentRange, this.chartWidth, this.chartHeight + this.padH, ref.xDiff, [[ref.yAlign.top, ref.yAlign.bottom, ref.currentMaxHeight, ref.currentMinHeight]], this.legendTextSize, this.textFont, this.getLegendColor, this.getLegendBorderColor, this.getLegendFontColor, this.getBackgroundColor, zoomGrade, this.nightGrade, ref.legendCoordinates, zoomGrade, legendDateFormat, this.zoomState === 'overview');
       }
     }
   }, {
@@ -1298,7 +1368,7 @@ function (_AnimatableChart) {
 
       if (visibleMaxHeight !== ref.toMaxHeight) {
         var uniqName = this.zoomState + 'currentMaxHeight';
-        this.addAnimation(ref, 'currentMaxHeight', visibleMaxHeight, animationDurationMs, uniqName);
+        this.addAnimation(ref, 'currentMaxHeight', visibleMaxHeight, this.animationDurationMs, uniqName);
         this.animate();
       }
 
@@ -1307,7 +1377,7 @@ function (_AnimatableChart) {
       if (visibleMinHeight !== ref.toMinHeight) {
         var _uniqName = this.zoomState + 'currentMinHeight';
 
-        this.addAnimation(ref, 'currentMinHeight', visibleMinHeight, animationDurationMs, _uniqName);
+        this.addAnimation(ref, 'currentMinHeight', visibleMinHeight, this.animationDurationMs, _uniqName);
         this.animate();
       }
 
@@ -1344,7 +1414,7 @@ function (_AnimatableChart) {
         ref.fromPeriod = ref.toPeriod;
         ref.toPeriod = ref.toPeriod / 2;
         ref.datesGrade = 0;
-        this.addAnimation(ref, 'datesGrade', 1, animationDurationMs, uniqName);
+        this.addAnimation(ref, 'datesGrade', 1, this.animationDurationMs, uniqName);
         this.animate();
       } else if (currentDiff < this.datesDiff) {
         var _uniqName2 = this.zoomState + 'datesGrade';
@@ -1352,7 +1422,7 @@ function (_AnimatableChart) {
         ref.fromPeriod = ref.toPeriod;
         ref.toPeriod = ref.toPeriod * 2;
         this.datesGrade = 0;
-        this.addAnimation(ref, 'datesGrade', 1, animationDurationMs, _uniqName2);
+        this.addAnimation(ref, 'datesGrade', 1, this.animationDurationMs, _uniqName2);
         this.animate();
       }
     }
@@ -1376,13 +1446,13 @@ function (_AnimatableChart) {
       for (var _i = fromLeft; _i <= toRight; _i++) {
         var timestamp = this.x[_i];
         var details = this.details[timestamp];
-        var _iteratorNormalCompletion = true;
-        var _didIteratorError = false;
-        var _iteratorError = undefined;
+        var _iteratorNormalCompletion2 = true;
+        var _didIteratorError2 = false;
+        var _iteratorError2 = undefined;
 
         try {
-          for (var _iterator = details.columns[Symbol.iterator](), _step; !(_iteratorNormalCompletion = (_step = _iterator.next()).done); _iteratorNormalCompletion = true) {
-            var column = _step.value;
+          for (var _iterator2 = details.columns[Symbol.iterator](), _step2; !(_iteratorNormalCompletion2 = (_step2 = _iterator2.next()).done); _iteratorNormalCompletion2 = true) {
+            var column = _step2.value;
 
             if (lineIdToIndexMap[column[0]] === undefined) {
               lineIdToIndexMap[column[0]] = columns.length;
@@ -1398,16 +1468,16 @@ function (_AnimatableChart) {
             }
           }
         } catch (err) {
-          _didIteratorError = true;
-          _iteratorError = err;
+          _didIteratorError2 = true;
+          _iteratorError2 = err;
         } finally {
           try {
-            if (!_iteratorNormalCompletion && _iterator.return != null) {
-              _iterator.return();
+            if (!_iteratorNormalCompletion2 && _iterator2.return != null) {
+              _iterator2.return();
             }
           } finally {
-            if (_didIteratorError) {
-              throw _iteratorError;
+            if (_didIteratorError2) {
+              throw _iteratorError2;
             }
           }
         }
@@ -1561,29 +1631,29 @@ function (_AnimatableChart) {
         return;
       }
 
-      var _iteratorNormalCompletion2 = true;
-      var _didIteratorError2 = false;
-      var _iteratorError2 = undefined;
+      var _iteratorNormalCompletion3 = true;
+      var _didIteratorError3 = false;
+      var _iteratorError3 = undefined;
 
       try {
-        for (var _iterator2 = this.checkboxes[Symbol.iterator](), _step2; !(_iteratorNormalCompletion2 = (_step2 = _iterator2.next()).done); _iteratorNormalCompletion2 = true) {
-          var c = _step2.value;
+        for (var _iterator3 = this.checkboxes[Symbol.iterator](), _step3; !(_iteratorNormalCompletion3 = (_step3 = _iterator3.next()).done); _iteratorNormalCompletion3 = true) {
+          var c = _step3.value;
 
           if (c.x <= canvasX && c.toX >= canvasX && c.y <= canvasY && c.toY >= canvasY) {
             return c.id;
           }
         }
       } catch (err) {
-        _didIteratorError2 = true;
-        _iteratorError2 = err;
+        _didIteratorError3 = true;
+        _iteratorError3 = err;
       } finally {
         try {
-          if (!_iteratorNormalCompletion2 && _iterator2.return != null) {
-            _iterator2.return();
+          if (!_iteratorNormalCompletion3 && _iterator3.return != null) {
+            _iterator3.return();
           }
         } finally {
-          if (_didIteratorError2) {
-            throw _iteratorError2;
+          if (_didIteratorError3) {
+            throw _iteratorError3;
           }
         }
       }
@@ -1707,7 +1777,7 @@ function (_AnimatableChart) {
       ref.legendMoving = false;
       var destinationPosition = (ref.x[ref.pickedIndex] - ref.x[1]) / ref.xDiff;
       var uniqName = this.zoomState + 'legendPosition';
-      this.addAnimation(ref, 'legendPosition', destinationPosition, animationDurationMs, uniqName);
+      this.addAnimation(ref, 'legendPosition', destinationPosition, this.animationDurationMs, uniqName);
       this.animate();
     }
   }, {
@@ -1774,9 +1844,9 @@ function (_AnimatableChart) {
     key: "nightMode",
     value: function nightMode(enable) {
       if (enable) {
-        this.addAnimation(this, 'nightGrade', 1, animationDurationMs);
+        this.addAnimation(this, 'nightGrade', 1, this.animationDurationMs);
       } else {
-        this.addAnimation(this, 'nightGrade', 0, animationDurationMs);
+        this.addAnimation(this, 'nightGrade', 0, this.animationDurationMs);
       }
 
       this.animate();
@@ -1789,36 +1859,6 @@ function (_AnimatableChart) {
 
 
 function getX(data) {
-  var _iteratorNormalCompletion3 = true;
-  var _didIteratorError3 = false;
-  var _iteratorError3 = undefined;
-
-  try {
-    for (var _iterator3 = data.columns[Symbol.iterator](), _step3; !(_iteratorNormalCompletion3 = (_step3 = _iterator3.next()).done); _iteratorNormalCompletion3 = true) {
-      var column = _step3.value;
-
-      if (data.types[column[0]] === 'x') {
-        return column;
-      }
-    }
-  } catch (err) {
-    _didIteratorError3 = true;
-    _iteratorError3 = err;
-  } finally {
-    try {
-      if (!_iteratorNormalCompletion3 && _iterator3.return != null) {
-        _iterator3.return();
-      }
-    } finally {
-      if (_didIteratorError3) {
-        throw _iteratorError3;
-      }
-    }
-  }
-}
-
-function getLines(data) {
-  var result = [];
   var _iteratorNormalCompletion4 = true;
   var _didIteratorError4 = false;
   var _iteratorError4 = undefined;
@@ -1827,8 +1867,8 @@ function getLines(data) {
     for (var _iterator4 = data.columns[Symbol.iterator](), _step4; !(_iteratorNormalCompletion4 = (_step4 = _iterator4.next()).done); _iteratorNormalCompletion4 = true) {
       var column = _step4.value;
 
-      if (data.types[column[0]] === 'line') {
-        result.push(column);
+      if (data.types[column[0]] === 'x') {
+        return column;
       }
     }
   } catch (err) {
@@ -1845,6 +1885,36 @@ function getLines(data) {
       }
     }
   }
+}
+
+function getLines(data) {
+  var result = [];
+  var _iteratorNormalCompletion5 = true;
+  var _didIteratorError5 = false;
+  var _iteratorError5 = undefined;
+
+  try {
+    for (var _iterator5 = data.columns[Symbol.iterator](), _step5; !(_iteratorNormalCompletion5 = (_step5 = _iterator5.next()).done); _iteratorNormalCompletion5 = true) {
+      var column = _step5.value;
+
+      if (data.types[column[0]] === 'line') {
+        result.push(column);
+      }
+    }
+  } catch (err) {
+    _didIteratorError5 = true;
+    _iteratorError5 = err;
+  } finally {
+    try {
+      if (!_iteratorNormalCompletion5 && _iterator5.return != null) {
+        _iterator5.return();
+      }
+    } finally {
+      if (_didIteratorError5) {
+        throw _iteratorError5;
+      }
+    }
+  }
 
   return result;
 }
@@ -1853,9 +1923,17 @@ function line_y_scaled_typeof(obj) { if (typeof Symbol === "function" && typeof 
 
 function line_y_scaled_classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
 
+function line_y_scaled_defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } }
+
+function line_y_scaled_createClass(Constructor, protoProps, staticProps) { if (protoProps) line_y_scaled_defineProperties(Constructor.prototype, protoProps); if (staticProps) line_y_scaled_defineProperties(Constructor, staticProps); return Constructor; }
+
 function line_y_scaled_possibleConstructorReturn(self, call) { if (call && (line_y_scaled_typeof(call) === "object" || typeof call === "function")) { return call; } return line_y_scaled_assertThisInitialized(self); }
 
 function line_y_scaled_assertThisInitialized(self) { if (self === void 0) { throw new ReferenceError("this hasn't been initialised - super() hasn't been called"); } return self; }
+
+function _get(target, property, receiver) { if (typeof Reflect !== "undefined" && Reflect.get) { _get = Reflect.get; } else { _get = function _get(target, property, receiver) { var base = _superPropBase(target, property); if (!base) return; var desc = Object.getOwnPropertyDescriptor(base, property); if (desc.get) { return desc.get.call(receiver); } return desc.value; }; } return _get(target, property, receiver || target); }
+
+function _superPropBase(object, property) { while (!Object.prototype.hasOwnProperty.call(object, property)) { object = line_y_scaled_getPrototypeOf(object); if (object === null) break; } return object; }
 
 function line_y_scaled_getPrototypeOf(o) { line_y_scaled_getPrototypeOf = Object.setPrototypeOf ? Object.getPrototypeOf : function _getPrototypeOf(o) { return o.__proto__ || Object.getPrototypeOf(o); }; return line_y_scaled_getPrototypeOf(o); }
 
@@ -1865,16 +1943,206 @@ function line_y_scaled_setPrototypeOf(o, p) { line_y_scaled_setPrototypeOf = Obj
 
 
 
-var LineYScaled =
+var animationDurationMs = 250;
+
+var line_y_scaled_LineYScaled =
 /*#__PURE__*/
 function (_LineChart) {
   line_y_scaled_inherits(LineYScaled, _LineChart);
 
-  function LineYScaled() {
+  function LineYScaled(data, options) {
+    var _this;
+
     line_y_scaled_classCallCheck(this, LineYScaled);
 
-    return line_y_scaled_possibleConstructorReturn(this, line_y_scaled_getPrototypeOf(LineYScaled).apply(this, arguments));
+    var lines2 = data.overview.columns.splice(2, 1);
+    var details2 = {};
+
+    for (var timestamp in data.details) {
+      details2[timestamp] = data.details[timestamp].columns.splice(2, 1)[0];
+    }
+
+    _this = line_y_scaled_possibleConstructorReturn(this, line_y_scaled_getPrototypeOf(LineYScaled).call(this, data, options));
+    _this.lines2 = lines2;
+    _this.details2 = details2;
+    _this.currentMaxHeight2 = _this.fromMaxHeight2 = _this.toMaxHeight2 = getMaxY(_this.x, lines2, _this.lineStates, _this.currentLeft, _this.currentRight);
+    _this.maxHeight2 = getMaxY(_this.x, lines2, _this.lineStates, 0, 1);
+    _this.currentMinHeight2 = _this.fromMinHeight2 = _this.toMinHeight2 = getMinY(_this.x, lines2, _this.lineStates, _this.currentLeft, _this.currentRight);
+    _this.minHeight2 = getMinY(_this.x, lines2, _this.lineStates, 0, 1);
+    _this.yAlign2 = {};
+    _this.getAxisColor1 = animatableHexColor(data.overview.colors['y0'], 1, data.overview.colors['y0'], 1);
+    _this.getAxisColor2 = animatableHexColor(data.overview.colors['y1'], 1, data.overview.colors['y0'], 1);
+    return _this;
   }
+
+  line_y_scaled_createClass(LineYScaled, [{
+    key: "drawLineChart",
+    value: function drawLineChart(ref, shrink, yAxisdateFormat, legendDateFormat, zoomGrade) {
+      drawGrid(this.ctx, this.padW, this.headerHeight, this.chartWidth, this.chartHeight + this.padH, 5, ref.fromMaxHeight, ref.toMaxHeight, ref.currentMaxHeight, ref.fromMinHeight, ref.toMinHeight, ref.currentMinHeight, ref.yAlign.max, ref.yAlign.min, ref.yAlign.top, ref.yAlign.bottom, this.getGridColor, this.getAxisColor1, false, this.lineGrades['y0'], this.gridLineWidth, this.textSize, this.nightGrade, zoomGrade);
+      drawGrid(this.ctx, this.padW, this.headerHeight, this.chartWidth, this.chartHeight + this.padH, 5, ref.fromMaxHeight2, ref.toMaxHeight2, ref.currentMaxHeight2, ref.fromMinHeight2, ref.toMinHeight2, ref.currentMinHeight2, ref.yAlign2.max, ref.yAlign2.min, ref.yAlign2.top, ref.yAlign2.bottom, this.getGridColor, this.getAxisColor2, true, this.lineGrades['y1'], this.gridLineWidth, this.textSize, this.nightGrade, zoomGrade);
+      drawLines(this.ctx, ref.x, ref.lines2, this.lineStates, this.lineGrades, this.lineColors, this.chartWidth, this.chartHeight + this.padH - ref.yAlign2.top, this.padW, this.headerHeight + ref.yAlign2.top, ref.yAlign2.bottom, ref.currentLeft, ref.currentRight, ref.xDiff * ref.currentRange, ref.currentMaxHeight2, ref.currentMinHeight2, this.lineWidth, zoomGrade, shrink);
+      drawLines(this.ctx, ref.x, ref.lines, this.lineStates, this.lineGrades, this.lineColors, this.chartWidth, this.chartHeight + this.padH - ref.yAlign.top, this.padW, this.headerHeight + ref.yAlign.top, ref.yAlign.bottom, ref.currentLeft, ref.currentRight, ref.xDiff * ref.currentRange, ref.currentMaxHeight, ref.currentMinHeight, this.lineWidth, zoomGrade, shrink); // redraw only if moving
+
+      drawDates(this.ctx, this.padW, this.datesOffsetH, this.chartWidth / ref.currentRange, ref.x[1], ref.xDiff, yAxisdateFormat, ref.currentLeft, ref.currentRight, this.fromPeriod, this.toPeriod, this.datesGrade, this.getAxisColor, this.nightGrade, zoomGrade);
+      drawLines(this.ctx, ref.x, ref.lines2, this.lineStates, this.lineGrades, this.lineColors, this.chartWidth, this.previewHeight, this.padW, this.previewOffsetH, 0, 0, 1, ref.xDiff, ref.maxHeight2, ref.minHeight2, this.previewLineWidth, zoomGrade, shrink);
+      drawLines(this.ctx, ref.x, ref.lines, this.lineStates, this.lineGrades, this.lineColors, this.chartWidth, this.previewHeight, this.padW, this.previewOffsetH, 0, 0, 1, ref.xDiff, ref.maxHeight, ref.minHeight, this.previewLineWidth, zoomGrade, shrink); // redraw only if moving or checked
+
+      drawScrollControlls(this.ctx, this.padW, this.previewOffsetH, this.chartWidth, this.previewHeight, ref.currentLeft, ref.currentRight, this.getPreviewBlurColor, this.getPreviewControlColor, this.nightGrade, zoomGrade);
+
+      if (ref.legendShown && (zoomGrade < 1 || ref.legendPosition >= ref.currentLeft && ref.legendPosition <= ref.currentRight)) {
+        drawRuller(this.ctx, this.padW, this.headerHeight + this.padH, this.rullerWidth, this.chartHeight, this.chartWidth, ref.currentLeft, ref.currentRight, ref.currentRange, ref.legendPosition, this.getRullerColor, zoomGrade, this.nightGrade);
+        var _iteratorNormalCompletion = true;
+        var _didIteratorError = false;
+        var _iteratorError = undefined;
+
+        try {
+          for (var _iterator = ref.lines[Symbol.iterator](), _step; !(_iteratorNormalCompletion = (_step = _iterator.next()).done); _iteratorNormalCompletion = true) {
+            var line = _step.value;
+            drawLinesCross(this.ctx, ref.x, line, this.lineLabels, this.lineStates, this.lineGrades, this.lineColors, this.lineWidth, ref.legendPosition, ref.pickedIndex, this.padW, this.headerHeight, ref.currentLeft, ref.currentRight, ref.currentRange, this.chartWidth, this.chartHeight + this.padH, ref.xDiff, ref.yAlign.top, ref.yAlign.bottom, ref.currentMaxHeight, ref.currentMinHeight, this.getBackgroundColor, this.nightGrade, zoomGrade);
+          }
+        } catch (err) {
+          _didIteratorError = true;
+          _iteratorError = err;
+        } finally {
+          try {
+            if (!_iteratorNormalCompletion && _iterator.return != null) {
+              _iterator.return();
+            }
+          } finally {
+            if (_didIteratorError) {
+              throw _iteratorError;
+            }
+          }
+        }
+
+        var _iteratorNormalCompletion2 = true;
+        var _didIteratorError2 = false;
+        var _iteratorError2 = undefined;
+
+        try {
+          for (var _iterator2 = ref.lines2[Symbol.iterator](), _step2; !(_iteratorNormalCompletion2 = (_step2 = _iterator2.next()).done); _iteratorNormalCompletion2 = true) {
+            var _line = _step2.value;
+            drawLinesCross(this.ctx, ref.x, _line, this.lineLabels, this.lineStates, this.lineGrades, this.lineColors, this.lineWidth, ref.legendPosition, ref.pickedIndex, this.padW, this.headerHeight, ref.currentLeft, ref.currentRight, ref.currentRange, this.chartWidth, this.chartHeight + this.padH, ref.xDiff, ref.yAlign2.top, ref.yAlign2.bottom, ref.currentMaxHeight2, ref.currentMinHeight2, this.getBackgroundColor, this.nightGrade, zoomGrade);
+          }
+        } catch (err) {
+          _didIteratorError2 = true;
+          _iteratorError2 = err;
+        } finally {
+          try {
+            if (!_iteratorNormalCompletion2 && _iterator2.return != null) {
+              _iterator2.return();
+            }
+          } finally {
+            if (_didIteratorError2) {
+              throw _iteratorError2;
+            }
+          }
+        }
+
+        drawLinesLegend(this.ctx, ref.x, [ref.lines, ref.lines2], this.lineLabels, this.lineStates, this.lineGrades, this.lineColors, this.lineWidth, ref.legendPosition, ref.pickedIndex, this.padW, this.headerHeight + this.padH, ref.currentLeft, ref.currentRight, ref.currentRange, this.chartWidth, this.chartHeight + this.padH, ref.xDiff, [[ref.yAlign.top, ref.yAlign.bottom, ref.currentMaxHeight, ref.currentMinHeight], [ref.yAlign2.top, ref.yAlign2.bottom, ref.currentMaxHeight2, ref.currentMinHeight2]], this.legendTextSize, this.textFont, this.getLegendColor, this.getLegendBorderColor, this.getLegendFontColor, this.getBackgroundColor, zoomGrade, this.nightGrade, ref.legendCoordinates, zoomGrade, legendDateFormat, this.zoomState === 'overview');
+      }
+    }
+  }, {
+    key: "calcYAlignment",
+    value: function calcYAlignment(ref) {
+      _get(line_y_scaled_getPrototypeOf(LineYScaled.prototype), "calcYAlignment", this).call(this, ref);
+
+      var chartHeight = this.chartHeight + this.padH;
+      var linesDiff = chartHeight / 6;
+
+      draw_tools_calcYAlignment(ref.toMaxHeight2, ref.toMinHeight2, chartHeight - this.padH, this.padH, chartHeight - linesDiff, linesDiff, chartHeight, ref.yAlign2);
+    }
+  }, {
+    key: "calcHeight",
+    value: function calcHeight(ref) {
+      _get(line_y_scaled_getPrototypeOf(LineYScaled.prototype), "calcHeight", this).call(this, ref);
+
+      var visibleMaxHeight = getMaxY(ref.x, ref.lines2, ref.lineStates, ref.currentLeft, ref.currentRight);
+
+      if (visibleMaxHeight !== ref.toMaxHeight2) {
+        var uniqName = this.zoomState + 'currentMaxHeight2';
+        this.addAnimation(ref, 'currentMaxHeight2', visibleMaxHeight, animationDurationMs, uniqName);
+        this.animate();
+      }
+
+      var visibleMinHeight = getMinY(ref.x, ref.lines2, ref.lineStates, ref.currentLeft, ref.currentRight);
+
+      if (visibleMinHeight !== ref.toMinHeight2) {
+        var _uniqName = this.zoomState + 'currentMinHeight2';
+
+        this.addAnimation(ref, 'currentMinHeight2', visibleMinHeight, animationDurationMs, _uniqName);
+        this.animate();
+      }
+
+      var maxAnim = this.animations[this.zoomState + 'currentMaxHeight2'];
+
+      if (maxAnim) {
+        ref.fromMaxHeight2 = maxAnim.from;
+        ref.toMaxHeight2 = maxAnim.to;
+      }
+
+      var minAnim = this.animations[this.zoomState + 'currentMinHeight2'];
+
+      if (minAnim) {
+        ref.fromMinHeight2 = minAnim.from;
+        ref.toMinHeight2 = minAnim.to;
+      }
+    }
+  }, {
+    key: "getDetails",
+    value: function getDetails(index) {
+      var details = _get(line_y_scaled_getPrototypeOf(LineYScaled.prototype), "getDetails", this).call(this, index);
+
+      var fromLeft = index - 3;
+      var toRight = index + 3;
+
+      if (fromLeft < 1) {
+        toRight += 1 - fromLeft;
+        fromLeft = 1;
+      } else if (toRight >= this.x.length) {
+        fromLeft -= toRight - this.x.length + 1;
+        toRight = this.x.length - 1;
+      }
+
+      var lines2 = [];
+
+      for (var i = fromLeft; i <= toRight; i++) {
+        var timestamp = this.x[i];
+        var _details = this.details2[timestamp];
+
+        if (!lines2.length) {
+          lines2[0] = _details[0];
+        }
+
+        var k = _details.length;
+        var offset = lines2.length - 1;
+
+        while (k-- > 1) {
+          lines2[offset + k] = _details[k];
+        }
+      }
+
+      lines2 = [lines2];
+      var rangeMaxHeight2 = getMaxY(details.x, lines2, this.lineStates, details.currentLeft, details.currentRight);
+      var rangeMinHeight2 = getMinY(details.x, lines2, this.lineStates, details.currentLeft, details.currentRight);
+      var maxHeight2 = getMaxY(details.x, lines2, this.lineStates, 0, 1);
+      var minHeight2 = getMinY(details.x, lines2, this.lineStates, 0, 1);
+      var fromMaxHeight2, toMaxHeight2, currentMaxHeight2, fromMinHeight2, toMinHeight2, currentMinHeight2;
+      fromMaxHeight2 = toMaxHeight2 = currentMaxHeight2 = rangeMaxHeight2;
+      fromMinHeight2 = toMinHeight2 = currentMinHeight2 = rangeMinHeight2;
+      details.lines2 = lines2;
+      details.maxHeight2 = maxHeight2;
+      details.minHeight2 = minHeight2;
+      details.fromMaxHeight2 = fromMaxHeight2;
+      details.toMaxHeight2 = toMaxHeight2;
+      details.currentMaxHeight2 = currentMaxHeight2;
+      details.fromMinHeight2 = fromMinHeight2;
+      details.toMinHeight2 = toMinHeight2;
+      details.currentMinHeight2 = currentMinHeight2;
+      details.yAlign2 = {};
+      return details;
+    }
+  }]);
 
   return LineYScaled;
 }(line_LineChart);
@@ -2037,7 +2305,7 @@ function (_AnimatableChart) {
       var overview = data.overview;
 
       if (overview.y_scaled) {
-        chart = new LineYScaled(data, {
+        chart = new line_y_scaled_LineYScaled(data, {
           width: parent.offsetWidth,
           height: 320,
           fontFamily: 'Helvetica, sans-serif',

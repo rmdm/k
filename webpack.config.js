@@ -10,9 +10,9 @@ module.exports = {
     },
     optimization: {
         minimizer: [
-            new UglifyJsPlugin({
-                sourceMap: true,
-            })
+            // new UglifyJsPlugin({
+            //     sourceMap: true,
+            // })
         ],
     },
     module: {

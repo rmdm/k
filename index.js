@@ -1,41 +1,38 @@
-import Panel from './lib/panel'
-import Canvas from './lib/canvas'
-import Checkboxes from './lib/checkboxes'
 import ChartFactory from './lib/chart_factory'
 import NightSwitch from './lib/night_switch'
 
-import data from './data/chart_data.json'
+import data from './generated_data'
 
-const factory = new ChartFactory(Panel, Canvas, Checkboxes)
+const factory = new ChartFactory()
 
-let panels = []
+let charts = []
 
 document.addEventListener('DOMContentLoaded', function () {
 
     const parent = document.getElementById('root')
 
     for (let datum of data) {
-        panels.push(factory.create(datum, parent))
+        charts.push(factory.create(datum, parent))
     }
 
     function switchMode (enable) {
-        panels.forEach(function (panel) {
-            panel.nightMode(enable)
+        charts.forEach(function (chart) {
+            chart.nightMode(enable)
         })
     }
 
     const nightSwitch = new NightSwitch(switchMode)
     parent.appendChild(nightSwitch.el)
 
-    function scale (width) {
-        panels.forEach(function (panel) {
-            panel.scale(width)
+    function resize (width) {
+        charts.forEach(function (chart) {
+            chart.setWidth(width, true)
         })
     }
 
     window.addEventListener('resize', function () {
-        scale(parent.offsetWidth)
+        resize(parent.offsetWidth)
     })
 
-    scale(parent.offsetWidth)
+    resize(parent.offsetWidth)
 })

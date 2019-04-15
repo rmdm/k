@@ -4,7 +4,8 @@
   "main": "index.js",
   "scripts": {
     "build": "webpack",
-    "lint": "eslint lib index.js"
+    "lint": "eslint lib index.js",
+    "regen": "node genData"
   },
   "devDependencies": {
     "@babel/core": "^7.4.0",

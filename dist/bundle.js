@@ -104,7 +104,15 @@ module.exports = __webpack_require__(2);
 "use strict";
 __webpack_require__.r(__webpack_exports__);
 
-// CONCATENATED MODULE: ./lib/draw-tools.js
+// CONCATENATED MODULE: ./lib/utils.js
+function _slicedToArray(arr, i) { return _arrayWithHoles(arr) || _iterableToArrayLimit(arr, i) || _nonIterableRest(); }
+
+function _nonIterableRest() { throw new TypeError("Invalid attempt to destructure non-iterable instance"); }
+
+function _iterableToArrayLimit(arr, i) { var _arr = []; var _n = true; var _d = false; var _e = undefined; try { for (var _i = arr[Symbol.iterator](), _s; !(_n = (_s = _i.next()).done); _n = true) { _arr.push(_s.value); if (i && _arr.length === i) break; } } catch (err) { _d = true; _e = err; } finally { try { if (!_n && _i["return"] != null) _i["return"](); } finally { if (_d) throw _e; } } return _arr; }
+
+function _arrayWithHoles(arr) { if (Array.isArray(arr)) return arr; }
+
 var pixelRatio = window.devicePixelRatio || 1;
 function toCssSize(value) {
   return value / pixelRatio;
@@ -175,7 +183,7 @@ function drawLine(ctx, x, line, grade, color, width, height, offsetW, offsetH, b
   ctx.stroke();
 }
 var roundingProbes = [2, 5, 10, 100, 1000, 10000, 100000, 1000000];
-function draw_tools_calcYAlignment(maxVal, minVal, topOffset, maxBottomOffset, highestLine, lowestLine, height, vals) {
+function utils_calcYAlignment(maxVal, minVal, topOffset, maxBottomOffset, highestLine, lowestLine, height, vals) {
   var bottomOffset = height * minVal / maxVal;
   bottomOffset = bottomOffset > maxBottomOffset ? maxBottomOffset : bottomOffset;
   vals.max = maxVal - (maxVal - minVal) * (topOffset - highestLine) / (topOffset - bottomOffset);
@@ -213,6 +221,33 @@ function draw_tools_calcYAlignment(maxVal, minVal, topOffset, maxBottomOffset, h
 
   return vals;
 }
+function calcTopYAlignment(maxVal, topOffset, highestLine, lowestLine, height, vals) {
+  vals.max = maxVal - maxVal * (topOffset - highestLine) / topOffset;
+  vals.top = height - topOffset;
+  vals.bottom = 0;
+  var _arr2 = roundingProbes;
+
+  for (var _i2 = 0; _i2 < _arr2.length; _i2++) {
+    var probe = _arr2[_i2];
+    var topVal = floorTo(vals.max, probe);
+
+    if (topVal < 0) {
+      break;
+    }
+
+    var top = (maxVal - topVal) / topVal * (highestLine - lowestLine);
+
+    if (top >= height - highestLine) {
+      break;
+    }
+
+    vals.max = topVal;
+    vals.top = height - highestLine - top;
+  }
+
+  vals.min = vals.max / highestLine * lowestLine;
+  return vals;
+}
 
 function floorTo(val, mod) {
   return (val / mod | 0) * mod;
@@ -222,7 +257,7 @@ function ceilTo(val, mod) {
   return ((val / mod | 0) + 1) * mod;
 }
 
-function draw_tools_drawGrid(ctx, offsetW, offsetH, width, height, nlines, fromMax, toMax, currentMax, fromMin, toMin, currentMin, lineMax, lineMin, topOffset, bottomOffset, getColor, getYColor, fromRight, lineGrade, lineWidth, textSize, nightGrade, zoomGrade) {
+function utils_drawGrid(ctx, offsetW, offsetH, width, height, nlines, fromMax, toMax, currentMax, fromMin, toMin, currentMin, lineMax, lineMin, topOffset, bottomOffset, getColor, getYColor, fromRight, lineGrade, lineWidth, textSize, nightGrade, zoomGrade) {
   if (toMin > toMax) {
     return;
   }
@@ -281,7 +316,7 @@ function drawGridLines(ctx, offsetW, offsetH, width, height, nlines, fromVal, to
   ctx.stroke();
 }
 
-function draw_tools_drawDates(ctx, offsetW, offsetH, scale, baseX, xDiff, format, left, right, fromPeriod, toPeriod, grade, getColor, nightGrade, zoomGrade) {
+function utils_drawDates(ctx, offsetW, offsetH, scale, baseX, xDiff, format, left, right, fromPeriod, toPeriod, grade, getColor, nightGrade, zoomGrade) {
   var fromFillStyle, toFillStyle;
 
   if (fromPeriod > toPeriod) {
@@ -753,6 +788,71 @@ function drawDateRangeSummary(ctx, offsetW, offsetH, width, headerHeight, header
   ctx.fillText(text, offsetW + width - ctx.measureText(text).width, offsetH + (headerHeight + fontSize) / 2 + (headerFontSize - fontSize) / 2);
   ctx.font = ctxFont;
 }
+function drawStackedBars(ctx, x, bars, summedBars, lineStates, lineGrades, lineColors, width, height, offsetW, offsetH, pickedIndex, left, right, maxHeight, zoomGrade, nightGrade, shrink) {
+  var scaleX = width / (right - left) / (x.length - 1);
+  var scaleY = height / maxHeight;
+  var offsetLeft = -left * width / (right - left) + offsetW - scaleX;
+  var offsetTop = offsetH + height;
+  var fromIndex = getLowerIndex(x, left - offsetW / width);
+  var toIndex = getUpperIndex(x, right + offsetW / width);
+  var values = new Array(toIndex - fromIndex + 1);
+  var pickedAlpha = pickedIndex > 0 ? 1 : 0;
+  var pickedVal = summedBars[pickedIndex - fromIndex + 1];
+
+  for (var j = bars.length - 1; j >= 0; j--) {
+    var bar = bars[j];
+    var label = bar[0];
+    ctx.beginPath();
+    ctx.fillStyle = lineColors[label](pickedAlpha, nightGrade, zoomGrade);
+    var dY = bar[fromIndex] * lineGrades[label];
+    var prevX = offsetLeft + scaleX * fromIndex;
+    var prevY = offsetTop - summedBars[1] * scaleY;
+    summedBars[1] -= dY;
+    ctx.moveTo(prevX, prevY);
+    prevX += scaleX;
+    ctx.lineTo(prevX, prevY);
+
+    for (var i = fromIndex + 1; i <= toIndex; i++) {
+      var _dY = bar[i] * lineGrades[label];
+
+      var _prevY = offsetTop - summedBars[i - fromIndex + 1] * scaleY;
+
+      summedBars[i - fromIndex + 1] -= _dY;
+      ctx.lineTo(prevX, _prevY);
+      prevX = prevX + scaleX;
+      ctx.lineTo(prevX, _prevY);
+    }
+
+    ctx.lineTo(prevX, offsetTop);
+    ctx.lineTo(offsetLeft + scaleX, offsetTop);
+    ctx.closePath();
+    ctx.fill();
+  }
+
+  if (pickedIndex >= fromIndex && pickedIndex <= toIndex) {
+    for (var _j = bars.length - 1; _j >= 0; _j--) {
+      var _bar = bars[_j];
+      var _label2 = _bar[0];
+      ctx.beginPath();
+      ctx.fillStyle = lineColors[_label2](0, nightGrade, zoomGrade);
+
+      var _dY2 = _bar[pickedIndex] * lineGrades[_label2];
+
+      var _prevX = offsetLeft + scaleX * pickedIndex;
+
+      var _prevY2 = offsetTop - pickedVal * scaleY;
+
+      pickedVal -= _dY2;
+      ctx.moveTo(_prevX, _prevY2);
+      _prevX += scaleX;
+      ctx.lineTo(_prevX, _prevY2);
+      ctx.lineTo(_prevX, offsetTop);
+      ctx.lineTo(_prevX - scaleX, offsetTop);
+      ctx.closePath();
+      ctx.fill();
+    }
+  }
+}
 function getLowerIndex(x, procent) {
   var val = x[1] + (x[x.length - 1] - x[1]) * procent;
   var idx = binarySearch(x, val, 1);
@@ -873,6 +973,28 @@ function getMinY(x, lines, lineStates, left, right) {
 
   return min;
 }
+function sumBars(x, bars, barGrades, left, right) {
+  var from = getLowerIndex(x, left);
+  var to = getUpperIndex(x, right);
+  var result = new Array(to - from + 2);
+  result[0] = 0;
+
+  for (var i = from; i <= to; i++) {
+    var sum = 0;
+
+    for (var j = 1; j < bars.length; j++) {
+      sum += bars[j][i] * barGrades[bars[j][0]];
+    }
+
+    result[i - from + 1] = sum;
+
+    if (sum > result[0]) {
+      result[0] = sum;
+    }
+  }
+
+  return result;
+}
 
 function colorFromRGBA(r, g, b, a) {
   return 'rgba(' + r + ',' + g + ',' + b + ',' + a + ')';
@@ -913,8 +1035,9 @@ function dynamicHexColor(fromHex, fromAlpha, toHex, toAlpha, toAltHex, toAltAlph
   var toDAltAlpha = toAltAlpha - fromAlpha;
   return function (grade) {
     var pickGrade = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : 0;
+    var alphaGrade = arguments.length > 2 && arguments[2] !== undefined ? arguments[2] : 1;
     var notPickGrade = 1 - pickGrade;
-    return colorFromRGBA((fromR + toDR * grade) * notPickGrade + (fromR + toAltDR * grade) * pickGrade, (fromG + toDG * grade) * notPickGrade + (fromG + toAltDG * grade) * pickGrade, (fromB + toDB * grade) * notPickGrade + (fromB + toAltDB * grade) * pickGrade, (fromAlpha + toDAlpha * grade) * notPickGrade + (fromAlpha + toDAltAlpha * grade) * pickGrade);
+    return colorFromRGBA((fromR + toDR * grade) * notPickGrade + (fromR + toAltDR * grade) * pickGrade, (fromG + toDG * grade) * notPickGrade + (fromG + toAltDG * grade) * pickGrade, (fromB + toDB * grade) * notPickGrade + (fromB + toAltDB * grade) * pickGrade, ((fromAlpha + toDAlpha * grade) * notPickGrade + (fromAlpha + toDAltAlpha * grade) * pickGrade) * alphaGrade);
   };
 }
 
@@ -930,7 +1053,7 @@ function getB(hex) {
   return parseInt(hex.slice(5), 16);
 }
 
-function getLines(data) {
+function getDataType(data, type) {
   var result = [];
   var _iteratorNormalCompletion8 = true;
   var _didIteratorError8 = false;
@@ -940,7 +1063,7 @@ function getLines(data) {
     for (var _iterator8 = data.columns[Symbol.iterator](), _step8; !(_iteratorNormalCompletion8 = (_step8 = _iterator8.next()).done); _iteratorNormalCompletion8 = true) {
       var column = _step8.value;
 
-      if (data.types[column[0]] === 'line') {
+      if (data.types[column[0]] === type) {
         result.push(column);
       }
     }
@@ -960,6 +1083,13 @@ function getLines(data) {
   }
 
   return result;
+}
+
+function getLines(data) {
+  return getDataType(data, 'line');
+}
+function getBars(data) {
+  return getDataType(data, 'bar');
 }
 function getX(data) {
   var _iteratorNormalCompletion9 = true;
@@ -988,6 +1118,43 @@ function getX(data) {
       }
     }
   }
+}
+function dynamicHexColorWithBlending(fromHex, fromAlpha, mask1, alpha1, mask2, alpha2) {
+  var _blendColors = blendColors(fromHex, fromAlpha, mask1, alpha1),
+      _blendColors2 = _slicedToArray(_blendColors, 2),
+      toHex = _blendColors2[0],
+      toAlpha = _blendColors2[1];
+
+  var _blendColors3 = blendColors(fromHex, fromAlpha, mask2, alpha2),
+      _blendColors4 = _slicedToArray(_blendColors3, 2),
+      toAltHex = _blendColors4[0],
+      toAltAlpha = _blendColors4[1];
+
+  return dynamicHexColor(fromHex, fromAlpha, toHex, toAlpha, toAltHex, toAltAlpha);
+}
+
+function blendColors(hex, a1, mask, a2) {
+  var r1 = getR(hex);
+  var g1 = getG(hex);
+  var b1 = getB(hex);
+  var r2 = getR(mask);
+  var g2 = getG(mask);
+  var b2 = getB(mask);
+  var a = 1 - (1 - a1) * (1 - a2);
+  var da2 = a2 / a;
+  var da1 = a1 * (1 - a2) / a;
+  var r = r2 * da2 + r1 * da1 | 0;
+  var g = g2 * da2 + g1 * da1 | 0;
+  var b = b2 * da2 + b1 * da1 | 0;
+  return [toHex(r, g, b), a];
+}
+
+function toHex(r, g, b) {
+  return ['#', padHexComponent(r.toString(16)), padHexComponent(g.toString(16)), padHexComponent(b.toString(16))].join('');
+}
+
+function padHexComponent(c) {
+  return c.length > 1 ? c : '0' + c;
 }
 // CONCATENATED MODULE: ./lib/animatable_chart.js
 function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
@@ -1220,8 +1387,8 @@ function () {
       this.ctx.lineJoin = 'bevel';
 
       if (resize) {
-        this.render();
         this.border = null;
+        this.render();
       }
     }
   }, {
@@ -1324,7 +1491,7 @@ function () {
   }, {
     key: "drawGrid",
     value: function drawGrid(ref, shrink, yAxisdateFormat, legendDateFormat, zoomGrade) {
-      draw_tools_drawGrid(this.ctx, this.padW, this.headerHeight, this.chartWidth, this.chartHeight + this.padH, 5, ref.fromMaxHeight, ref.toMaxHeight, ref.currentMaxHeight, ref.fromMinHeight, ref.toMinHeight, ref.currentMinHeight, ref.yAlign.max, ref.yAlign.min, ref.yAlign.top, ref.yAlign.bottom, this.getGridColor, this.getAxisColor, false, 1, this.gridLineWidth, this.textSize, this.nightGrade, zoomGrade);
+      utils_drawGrid(this.ctx, this.padW, this.headerHeight, this.chartWidth, this.chartHeight + this.padH, 5, ref.fromMaxHeight, ref.toMaxHeight, ref.currentMaxHeight, ref.fromMinHeight, ref.toMinHeight, ref.currentMinHeight, ref.yAlign.max, ref.yAlign.min, ref.yAlign.top, ref.yAlign.bottom, this.getGridColor, this.getAxisColor, false, 1, this.gridLineWidth, this.textSize, this.nightGrade, zoomGrade);
     }
   }, {
     key: "drawChart",
@@ -1333,7 +1500,7 @@ function () {
     key: "drawDates",
     value: function drawDates(ref, shrink, yAxisdateFormat, legendDateFormat, zoomGrade) {
       // redraw only if moving
-      draw_tools_drawDates(this.ctx, this.padW, this.datesOffsetH, this.chartWidth / ref.currentRange, ref.x[1], ref.xDiff, yAxisdateFormat, ref.currentLeft, ref.currentRight, this.fromPeriod, this.toPeriod, this.datesGrade, this.getAxisColor, this.nightGrade, zoomGrade);
+      utils_drawDates(this.ctx, this.padW, this.datesOffsetH, this.chartWidth / ref.currentRange, ref.x[1], ref.xDiff, yAxisdateFormat, ref.currentLeft, ref.currentRight, this.fromPeriod, this.toPeriod, this.datesGrade, this.getAxisColor, this.nightGrade, zoomGrade);
     }
   }, {
     key: "drawPreview",
@@ -1382,6 +1549,94 @@ function () {
         this.addAnimation(ref, 'datesGrade', 1, this.animationDurationMs, _uniqName);
         this.animate();
       }
+    }
+  }, {
+    key: "mergeZoomedColumns",
+    value: function mergeZoomedColumns(from, to) {
+      var columns = [],
+          lineIdToIndexMap = {};
+
+      for (var _i = from; _i <= to; _i++) {
+        var timestamp = this.x[_i];
+        var details = this.details[timestamp];
+        var _iteratorNormalCompletion = true;
+        var _didIteratorError = false;
+        var _iteratorError = undefined;
+
+        try {
+          for (var _iterator = details.columns[Symbol.iterator](), _step; !(_iteratorNormalCompletion = (_step = _iterator.next()).done); _iteratorNormalCompletion = true) {
+            var column = _step.value;
+
+            if (lineIdToIndexMap[column[0]] === undefined) {
+              lineIdToIndexMap[column[0]] = columns.length;
+              columns.push(column.slice());
+            } else {
+              var k = column.length;
+              var _to = columns[lineIdToIndexMap[column[0]]];
+              var offset = _to.length - 1;
+
+              while (k-- > 1) {
+                _to[offset + k] = column[k];
+              }
+            }
+          }
+        } catch (err) {
+          _didIteratorError = true;
+          _iteratorError = err;
+        } finally {
+          try {
+            if (!_iteratorNormalCompletion && _iterator.return != null) {
+              _iterator.return();
+            }
+          } finally {
+            if (_didIteratorError) {
+              throw _iteratorError;
+            }
+          }
+        }
+      }
+
+      return columns;
+    }
+  }, {
+    key: "getDetails",
+    value: function getDetails(index) {
+      var fromLeft = index - 3;
+      var toRight = index + 3;
+
+      if (fromLeft < 1) {
+        toRight += 1 - fromLeft;
+        fromLeft = 1;
+      } else if (toRight >= this.x.length) {
+        fromLeft -= toRight - this.x.length + 1;
+        toRight = this.x.length - 1;
+      }
+
+      var scrollLeft, scrollRight;
+      var currentLeft = scrollLeft = (index - fromLeft) / 7;
+      var currentRight = scrollRight = currentLeft + 1 / 7;
+      var currentRange = currentRight - currentLeft;
+      return {
+        fromLeft: fromLeft,
+        toRight: toRight,
+        currentLeft: currentLeft,
+        currentRight: currentRight,
+        currentRange: currentRange,
+        lineStates: this.lineStates,
+        fromPeriod: 0,
+        toPeriod: 0,
+        datesGrade: 1,
+        moveDir: 'no',
+        scrollStart: 0,
+        scrollLeft: scrollLeft,
+        scrollRight: scrollRight,
+        legendShown: false,
+        legendMoving: false,
+        legendCoordinates: {},
+        pickedIndex: -1,
+        legendPosition: 0,
+        yAlign: {}
+      };
     }
   }, {
     key: "setNoMove",
@@ -1482,29 +1737,29 @@ function () {
         return;
       }
 
-      var _iteratorNormalCompletion = true;
-      var _didIteratorError = false;
-      var _iteratorError = undefined;
+      var _iteratorNormalCompletion2 = true;
+      var _didIteratorError2 = false;
+      var _iteratorError2 = undefined;
 
       try {
-        for (var _iterator = this.checkboxes[Symbol.iterator](), _step; !(_iteratorNormalCompletion = (_step = _iterator.next()).done); _iteratorNormalCompletion = true) {
-          var c = _step.value;
+        for (var _iterator2 = this.checkboxes[Symbol.iterator](), _step2; !(_iteratorNormalCompletion2 = (_step2 = _iterator2.next()).done); _iteratorNormalCompletion2 = true) {
+          var c = _step2.value;
 
           if (c.x <= canvasX && c.toX >= canvasX && c.y <= canvasY && c.toY >= canvasY) {
             return c.id;
           }
         }
       } catch (err) {
-        _didIteratorError = true;
-        _iteratorError = err;
+        _didIteratorError2 = true;
+        _iteratorError2 = err;
       } finally {
         try {
-          if (!_iteratorNormalCompletion && _iterator.return != null) {
-            _iterator.return();
+          if (!_iteratorNormalCompletion2 && _iterator2.return != null) {
+            _iterator2.return();
           }
         } finally {
-          if (_didIteratorError) {
-            throw _iteratorError;
+          if (_didIteratorError2) {
+            throw _iteratorError2;
           }
         }
       }
@@ -1705,11 +1960,7 @@ function () {
   }, {
     key: "getBoundingClientRect",
     value: function getBoundingClientRect() {
-      if (!this.border) {
-        this.border = this.canvasEl.getBoundingClientRect();
-      }
-
-      return this.border;
+      return this.canvasEl.getBoundingClientRect();
     }
   }]);
 
@@ -1816,7 +2067,7 @@ function (_AnimatableChart) {
       var chartHeight = this.chartHeight + this.padH;
       var linesDiff = chartHeight / 6;
 
-      draw_tools_calcYAlignment(ref.toMaxHeight, ref.toMinHeight, chartHeight - this.padH, this.padH, chartHeight - linesDiff, linesDiff, chartHeight, ref.yAlign);
+      utils_calcYAlignment(ref.toMaxHeight, ref.toMinHeight, chartHeight - this.padH, this.padH, chartHeight - linesDiff, linesDiff, chartHeight, ref.yAlign);
     }
   }, {
     key: "calcHeight",
@@ -1855,108 +2106,35 @@ function (_AnimatableChart) {
   }, {
     key: "getDetails",
     value: function getDetails(index) {
-      var fromLeft = index - 3;
-      var toRight = index + 3;
+      var details = _get(_getPrototypeOf(LineChart.prototype), "getDetails", this).call(this, index);
 
-      if (fromLeft < 1) {
-        toRight += 1 - fromLeft;
-        fromLeft = 1;
-      } else if (toRight >= this.x.length) {
-        fromLeft -= toRight - this.x.length + 1;
-        toRight = this.x.length - 1;
-      }
-
-      var columns = [],
-          lineIdToIndexMap = {};
-
-      for (var i = fromLeft; i <= toRight; i++) {
-        var timestamp = this.x[i];
-        var details = this.details[timestamp];
-        var _iteratorNormalCompletion2 = true;
-        var _didIteratorError2 = false;
-        var _iteratorError2 = undefined;
-
-        try {
-          for (var _iterator2 = details.columns[Symbol.iterator](), _step2; !(_iteratorNormalCompletion2 = (_step2 = _iterator2.next()).done); _iteratorNormalCompletion2 = true) {
-            var column = _step2.value;
-
-            if (lineIdToIndexMap[column[0]] === undefined) {
-              lineIdToIndexMap[column[0]] = columns.length;
-              columns.push(column.slice());
-            } else {
-              var k = column.length;
-              var to = columns[lineIdToIndexMap[column[0]]];
-              var offset = to.length - 1;
-
-              while (k-- > 1) {
-                to[offset + k] = column[k];
-              }
-            }
-          }
-        } catch (err) {
-          _didIteratorError2 = true;
-          _iteratorError2 = err;
-        } finally {
-          try {
-            if (!_iteratorNormalCompletion2 && _iterator2.return != null) {
-              _iterator2.return();
-            }
-          } finally {
-            if (_didIteratorError2) {
-              throw _iteratorError2;
-            }
-          }
-        }
-      }
-
-      var scrollLeft, scrollRight;
-      var currentLeft = scrollLeft = (index - fromLeft) / 7;
-      var currentRight = scrollRight = currentLeft + 1 / 7;
-      var currentRange = currentRight - currentLeft;
+      var columns = this.mergeZoomedColumns(details.fromLeft, details.toRight);
       var data = {
         columns: columns,
         types: this.details[this.x[1]].types
       };
       var x = getX(data);
       var lines = getLines(data);
-      var rangeMaxHeight = getMaxY(x, lines, this.lineStates, currentLeft, currentRight);
-      var rangeMinHeight = getMinY(x, lines, this.lineStates, currentLeft, currentRight);
+      var rangeMaxHeight = getMaxY(x, lines, this.lineStates, details.currentLeft, details.currentRight);
+      var rangeMinHeight = getMinY(x, lines, this.lineStates, details.currentLeft, details.currentRight);
       var maxHeight = getMaxY(x, lines, this.lineStates, 0, 1);
       var minHeight = getMinY(x, lines, this.lineStates, 0, 1);
       var fromMaxHeight, toMaxHeight, currentMaxHeight, fromMinHeight, toMinHeight, currentMinHeight;
       fromMaxHeight = toMaxHeight = currentMaxHeight = rangeMaxHeight;
       fromMinHeight = toMinHeight = currentMinHeight = rangeMinHeight;
       var xDiff = x[x.length - 1] - x[1];
-      return {
-        x: x,
-        lines: lines,
-        maxHeight: maxHeight,
-        minHeight: minHeight,
-        fromMaxHeight: fromMaxHeight,
-        toMaxHeight: toMaxHeight,
-        currentMaxHeight: currentMaxHeight,
-        fromMinHeight: fromMinHeight,
-        toMinHeight: toMinHeight,
-        currentMinHeight: currentMinHeight,
-        currentLeft: currentLeft,
-        currentRight: currentRight,
-        currentRange: currentRange,
-        xDiff: xDiff,
-        lineStates: this.lineStates,
-        fromPeriod: 0,
-        toPeriod: 0,
-        datesGrade: 1,
-        moveDir: 'no',
-        scrollStart: 0,
-        scrollLeft: scrollLeft,
-        scrollRight: scrollRight,
-        legendShown: false,
-        legendMoving: false,
-        legendCoordinates: {},
-        pickedIndex: -1,
-        legendPosition: 0,
-        yAlign: {}
-      };
+      details.x = x;
+      details.xDiff = xDiff;
+      details.lines = lines;
+      details.maxHeight = maxHeight;
+      details.minHeight = minHeight;
+      details.fromMaxHeight = fromMaxHeight;
+      details.toMaxHeight = toMaxHeight;
+      details.currentMaxHeight = currentMaxHeight;
+      details.fromMinHeight = fromMinHeight;
+      details.toMinHeight = toMinHeight;
+      details.currentMinHeight = currentMinHeight;
+      return details;
     }
   }]);
 
@@ -2024,9 +2202,9 @@ function (_LineChart) {
   line_y_scaled_createClass(LineYScaled, [{
     key: "drawGrid",
     value: function drawGrid(ref, shrink, yAxisdateFormat, legendDateFormat, zoomGrade) {
-      draw_tools_drawGrid(this.ctx, this.padW, this.headerHeight, this.chartWidth, this.chartHeight + this.padH, 5, ref.fromMaxHeight, ref.toMaxHeight, ref.currentMaxHeight, ref.fromMinHeight, ref.toMinHeight, ref.currentMinHeight, ref.yAlign.max, ref.yAlign.min, ref.yAlign.top, ref.yAlign.bottom, this.getGridColor, this.getAxisColor1, false, this.lineGrades['y0'], this.gridLineWidth, this.textSize, this.nightGrade, zoomGrade);
+      utils_drawGrid(this.ctx, this.padW, this.headerHeight, this.chartWidth, this.chartHeight + this.padH, 5, ref.fromMaxHeight, ref.toMaxHeight, ref.currentMaxHeight, ref.fromMinHeight, ref.toMinHeight, ref.currentMinHeight, ref.yAlign.max, ref.yAlign.min, ref.yAlign.top, ref.yAlign.bottom, this.getGridColor, this.getAxisColor1, false, this.lineGrades['y0'], this.gridLineWidth, this.textSize, this.nightGrade, zoomGrade);
 
-      draw_tools_drawGrid(this.ctx, this.padW, this.headerHeight, this.chartWidth, this.chartHeight + this.padH, 5, ref.fromMaxHeight2, ref.toMaxHeight2, ref.currentMaxHeight2, ref.fromMinHeight2, ref.toMinHeight2, ref.currentMinHeight2, ref.yAlign2.max, ref.yAlign2.min, ref.yAlign2.top, ref.yAlign2.bottom, this.getGridColor, this.getAxisColor2, true, this.lineGrades['y1'], this.gridLineWidth, this.textSize, this.nightGrade, zoomGrade);
+      utils_drawGrid(this.ctx, this.padW, this.headerHeight, this.chartWidth, this.chartHeight + this.padH, 5, ref.fromMaxHeight2, ref.toMaxHeight2, ref.currentMaxHeight2, ref.fromMinHeight2, ref.toMinHeight2, ref.currentMinHeight2, ref.yAlign2.max, ref.yAlign2.min, ref.yAlign2.top, ref.yAlign2.bottom, this.getGridColor, this.getAxisColor2, true, this.lineGrades['y1'], this.gridLineWidth, this.textSize, this.nightGrade, zoomGrade);
     }
   }, {
     key: "drawChart",
@@ -2102,7 +2280,7 @@ function (_LineChart) {
       var chartHeight = this.chartHeight + this.padH;
       var linesDiff = chartHeight / 6;
 
-      draw_tools_calcYAlignment(ref.toMaxHeight2, ref.toMinHeight2, chartHeight - this.padH, this.padH, chartHeight - linesDiff, linesDiff, chartHeight, ref.yAlign2);
+      utils_calcYAlignment(ref.toMaxHeight2, ref.toMinHeight2, chartHeight - this.padH, this.padH, chartHeight - linesDiff, linesDiff, chartHeight, ref.yAlign2);
     }
   }, {
     key: "calcHeight",
@@ -2205,9 +2383,17 @@ function bar_stacked_typeof(obj) { if (typeof Symbol === "function" && typeof Sy
 
 function bar_stacked_classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
 
+function bar_stacked_defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } }
+
+function bar_stacked_createClass(Constructor, protoProps, staticProps) { if (protoProps) bar_stacked_defineProperties(Constructor.prototype, protoProps); if (staticProps) bar_stacked_defineProperties(Constructor, staticProps); return Constructor; }
+
 function bar_stacked_possibleConstructorReturn(self, call) { if (call && (bar_stacked_typeof(call) === "object" || typeof call === "function")) { return call; } return bar_stacked_assertThisInitialized(self); }
 
 function bar_stacked_assertThisInitialized(self) { if (self === void 0) { throw new ReferenceError("this hasn't been initialised - super() hasn't been called"); } return self; }
+
+function bar_stacked_get(target, property, receiver) { if (typeof Reflect !== "undefined" && Reflect.get) { bar_stacked_get = Reflect.get; } else { bar_stacked_get = function _get(target, property, receiver) { var base = bar_stacked_superPropBase(target, property); if (!base) return; var desc = Object.getOwnPropertyDescriptor(base, property); if (desc.get) { return desc.get.call(receiver); } return desc.value; }; } return bar_stacked_get(target, property, receiver || target); }
+
+function bar_stacked_superPropBase(object, property) { while (!Object.prototype.hasOwnProperty.call(object, property)) { object = bar_stacked_getPrototypeOf(object); if (object === null) break; } return object; }
 
 function bar_stacked_getPrototypeOf(o) { bar_stacked_getPrototypeOf = Object.setPrototypeOf ? Object.getPrototypeOf : function _getPrototypeOf(o) { return o.__proto__ || Object.getPrototypeOf(o); }; return bar_stacked_getPrototypeOf(o); }
 
@@ -2217,16 +2403,134 @@ function bar_stacked_setPrototypeOf(o, p) { bar_stacked_setPrototypeOf = Object.
 
 
 
-var StackedBarChart =
+
+var bar_stacked_StackedBarChart =
 /*#__PURE__*/
 function (_AnimatableChart) {
   bar_stacked_inherits(StackedBarChart, _AnimatableChart);
 
   function StackedBarChart(data, options) {
+    var _this;
+
     bar_stacked_classCallCheck(this, StackedBarChart);
 
-    return bar_stacked_possibleConstructorReturn(this, bar_stacked_getPrototypeOf(StackedBarChart).call(this, data, options));
+    _this = bar_stacked_possibleConstructorReturn(this, bar_stacked_getPrototypeOf(StackedBarChart).call(this, data, options));
+    _this.bars = getBars(data.overview);
+    _this.lineColors = {};
+
+    for (var label in _this.lineLabels) {
+      _this.lineColors[label] = dynamicHexColorWithBlending(data.overview.colors[label], 1, '#FFFFFF', 0.5, '#242F3E', 0.5);
+    }
+
+    _this.summedBars = sumBars(_this.x, _this.bars, _this.lineGrades, _this.currentLeft - _this.padW / _this.chartWidth, _this.currentRight + _this.padW / _this.chartWidth);
+    _this.fullSummedBars = sumBars(_this.x, _this.bars, _this.lineGrades, 0, 1);
+    _this.currentMaxHeight = _this.fromMaxHeight = _this.toMaxHeight = _this.summedBars[0];
+    _this.maxHeight = _this.fullSummedBars[0];
+    _this.currentMinHeight = _this.fromMinHeight = _this.toMinHeight = 0;
+    _this.minHeight = 0;
+    return _this;
   }
+
+  bar_stacked_createClass(StackedBarChart, [{
+    key: "drawView",
+    value: function drawView(ref, shrink, yAxisdateFormat, legendDateFormat, zoomGrade) {
+      this.drawChart(ref, shrink, yAxisdateFormat, legendDateFormat, zoomGrade);
+      this.drawGrid(ref, shrink, yAxisdateFormat, legendDateFormat, zoomGrade);
+      this.drawDates(ref, shrink, yAxisdateFormat, legendDateFormat, zoomGrade);
+      this.drawPreview(ref, shrink, yAxisdateFormat, legendDateFormat, zoomGrade);
+      this.drawScroll(ref, shrink, yAxisdateFormat, legendDateFormat, zoomGrade);
+
+      if (ref.legendShown && (zoomGrade < 1 || ref.legendPosition >= ref.currentLeft && ref.legendPosition <= ref.currentRight)) {
+        this.drawLegend(ref, shrink, yAxisdateFormat, legendDateFormat, zoomGrade);
+      }
+    }
+  }, {
+    key: "drawChart",
+    value: function drawChart(ref, shrink, yAxisdateFormat, legendDateFormat, zoomGrade) {
+      drawStackedBars(this.ctx, ref.x, ref.bars, ref.summedBars, this.lineGrades, this.lineGrades, this.lineColors, this.chartWidth, this.chartHeight + this.padH, this.padW, this.headerHeight, ref.pickedIndex, ref.currentLeft, ref.currentRight, ref.currentMaxHeight, zoomGrade, this.nightGrade, shrink);
+    }
+  }, {
+    key: "drawPreview",
+    value: function drawPreview(ref, shrink, yAxisdateFormat, legendDateFormat, zoomGrade) {
+      drawStackedBars(this.ctx, ref.x, ref.bars, ref.fullSummedBars.slice(0), this.lineGrades, this.lineGrades, this.lineColors, this.chartWidth, this.previewHeight, this.padW, this.previewOffsetH, 0, 0, 1, ref.maxHeight, zoomGrade, shrink);
+    }
+  }, {
+    key: "drawLegend",
+    value: function drawLegend(ref, shrink, yAxisdateFormat, legendDateFormat, zoomGrade) {
+      drawLinesLegend(this.ctx, ref.x, [ref.bars], this.lineLabels, this.lineStates, this.lineGrades, this.lineColors, this.lineWidth, ref.legendPosition, ref.pickedIndex, this.padW, this.headerHeight + this.padH, ref.currentLeft, ref.currentRight, ref.currentRange, this.chartWidth, this.chartHeight + this.padH, ref.xDiff, [[0, 0, 0, 0]], this.legendTextSize, this.textFont, this.getLegendColor, this.getLegendBorderColor, this.getLegendFontColor, this.getBackgroundColor, zoomGrade, this.nightGrade, ref.legendCoordinates, zoomGrade, legendDateFormat, this.zoomState === 'overview');
+    }
+  }, {
+    key: "calc",
+    value: function calc(ref) {
+      bar_stacked_get(bar_stacked_getPrototypeOf(StackedBarChart.prototype), "calc", this).call(this, ref);
+
+      this.calcHeight(ref);
+      this.calcYAlignment(ref);
+    }
+  }, {
+    key: "calcYAlignment",
+    value: function calcYAlignment(ref) {
+      var chartHeight = this.chartHeight + this.padH;
+      var linesDiff = chartHeight / 6;
+      calcTopYAlignment(ref.toMaxHeight, chartHeight - this.padH, chartHeight - linesDiff, linesDiff, chartHeight, ref.yAlign);
+    }
+  }, {
+    key: "calcHeight",
+    value: function calcHeight(ref) {
+      ref.summedBars = sumBars(ref.x, ref.bars, this.lineGrades, ref.currentLeft - this.padW / this.chartWidth, ref.currentRight + this.padW / this.chartWidth);
+      var newMaxHeight = ref.summedBars[0];
+
+      if (newMaxHeight !== this.toMaxHeight) {
+        var uniqName = this.zoomState + 'currentMaxHeight';
+        this.addAnimation(ref, 'currentMaxHeight', newMaxHeight, this.animationDurationMs, uniqName);
+        this.animate();
+      }
+
+      var maxAnim = this.animations[this.zoomState + 'currentMaxHeight'];
+
+      if (maxAnim) {
+        ref.fromMaxHeight = maxAnim.from;
+        ref.toMaxHeight = maxAnim.to;
+      }
+    }
+  }, {
+    key: "getDetails",
+    value: function getDetails(index) {
+      var details = bar_stacked_get(bar_stacked_getPrototypeOf(StackedBarChart.prototype), "getDetails", this).call(this, index);
+
+      var columns = this.mergeZoomedColumns(details.fromLeft, details.toRight);
+      var data = {
+        columns: columns,
+        types: this.details[this.x[1]].types
+      };
+      var x = getX(data);
+      var bars = getBars(data);
+      var summedBars = sumBars(x, bars, this.lineGrades, details.currentLeft - this.padW / this.chartWidth, details.currentRight + this.padW / this.chartWidth);
+      var rangeMaxHeight = summedBars[0];
+      var rangeMinHeight = 0;
+      var fullSummedBars = sumBars(x, bars, this.lineGrades, 0, 1);
+      var maxHeight = fullSummedBars[0];
+      var minHeight = 0;
+      var fromMaxHeight, toMaxHeight, currentMaxHeight, fromMinHeight, toMinHeight, currentMinHeight;
+      fromMaxHeight = toMaxHeight = currentMaxHeight = rangeMaxHeight;
+      fromMinHeight = toMinHeight = currentMinHeight = rangeMinHeight;
+      var xDiff = x[x.length - 1] - x[1];
+      details.x = x;
+      details.xDiff = xDiff;
+      details.bars = bars;
+      details.summedBars = summedBars;
+      details.fullSummedBars = fullSummedBars;
+      details.maxHeight = maxHeight;
+      details.minHeight = minHeight;
+      details.fromMaxHeight = fromMaxHeight;
+      details.toMaxHeight = toMaxHeight;
+      details.currentMaxHeight = currentMaxHeight;
+      details.fromMinHeight = fromMinHeight;
+      details.toMinHeight = toMinHeight;
+      details.currentMinHeight = currentMinHeight;
+      return details;
+    }
+  }]);
 
   return StackedBarChart;
 }(animatable_chart_AnimatedCanvas);
@@ -2365,7 +2669,7 @@ function (_AnimatableChart) {
           headerHeight: 20
         });
       } else if (overview.stacked) {
-        chart = new StackedBarChart(data, {
+        chart = new bar_stacked_StackedBarChart(data, {
           width: parent.offsetWidth,
           height: 320,
           fontFamily: 'Helvetica, sans-serif',

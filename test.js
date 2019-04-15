@@ -7,7 +7,6 @@ const roundingProbes = [ 2, 5, 10, 100, 1000, 10000, 100000, 1000000 ]
 
 */
 
-console.log(calcYAlignment(3770, 1310, 560, 40, 500, 100, 600, {}))
 
 function calcYAlignment (maxVal, minVal, topOffset, maxBottomOffset, highestLine, lowestLine, height, vals) {
 
@@ -37,7 +36,7 @@ function calcYAlignment (maxVal, minVal, topOffset, maxBottomOffset, highestLine
 
         let bottom = (bottomVal - minVal) / (topVal - bottomVal) * (highestLine - lowestLine)
 console.log(bottom)
-        if (bottom >= lowestLine) {
+        if (bottom > lowestLine) {
             break
         }
 
@@ -46,6 +45,37 @@ console.log(bottom)
         vals.top = height - highestLine - top
         vals.bottom = lowestLine - bottom
     }
+
+    return vals
+}
+
+console.log(calcTopYAlignment(1111, 560, 500, 100, 600, {}))
+
+function calcTopYAlignment (maxVal, topOffset, highestLine, lowestLine, height, vals) {
+
+    vals.max = maxVal - maxVal * (topOffset - highestLine) / (topOffset)
+    vals.top = height - topOffset
+    vals.bottom = 0
+
+    for (let probe of roundingProbes) {
+
+        const topVal = floorTo(vals.max, probe)
+
+        if (topVal < 0) {
+            break
+        }
+
+        let top = (maxVal - topVal) / topVal * (highestLine - lowestLine)
+        if (top >= (height - highestLine)) {
+            break
+        }
+
+
+        vals.max = topVal
+        vals.top = height - highestLine - top
+    }
+
+    vals.min = vals.max / highestLine * lowestLine
 
     return vals
 }

@@ -358,6 +358,7 @@ var days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'S
 - Saturday, 1 April 2019 'weekdate'
 - Sat, 1 April 2019 'shortweekdate'
 - 12:00 'hours'
+- 1 April 'day'
 */
 
 function formatDate(timestamp, format) {
@@ -378,6 +379,9 @@ function formatDate(timestamp, format) {
 
     case 'shortweekdate':
       return days[d.getUTCDay()] + ', ' + d.getUTCDate() + ' ' + months[d.getUTCMonth()] + ' ' + d.getUTCFullYear();
+
+    case 'day':
+      return d.getUTCDate() + ' ' + months[d.getUTCMonth()];
   }
 }
 
@@ -430,7 +434,7 @@ function drawRoundedRect(ctx, fromX, toX, fromY, toY, leftRadius, rightRadius) {
   ctx.lineTo(fromX, fromY + leftRadius);
   ctx.quadraticCurveTo(fromX, fromY, fromX + leftRadius, fromY);
 }
-function drawCheckboxes(ctx, offsetW, offsetH, maxWidth, checkboxes, checkboxHeight, checkboxRadius, checkboxMargin, checkboxFont, nightGrade) {
+function utils_drawCheckboxes(ctx, offsetW, offsetH, maxWidth, checkboxes, checkboxHeight, checkboxRadius, checkboxMargin, checkboxFont, nightGrade, zoomGrade) {
   var ctxFont = ctx.font;
   ctx.font = checkboxHeight / 2 + 'px ' + checkboxFont;
   var leftOffset = offsetW,
@@ -450,7 +454,7 @@ function drawCheckboxes(ctx, offsetW, offsetH, maxWidth, checkboxes, checkboxHei
         topOffset = checkboxHeight + checkboxMargin;
       }
 
-      drawCheckbox(ctx, leftOffset, topOffset, width, checkboxHeight, checkboxRadius, checkbox.label, textWidth, checkbox.getColor, checkbox.grade, nightGrade);
+      drawCheckbox(ctx, leftOffset, topOffset, width, checkboxHeight, checkboxRadius, checkbox.label, textWidth, checkbox.getColor, checkbox.grade, nightGrade, zoomGrade);
       checkbox.x = leftOffset;
       checkbox.y = topOffset;
       checkbox.toX = leftOffset + width;
@@ -475,16 +479,16 @@ function drawCheckboxes(ctx, offsetW, offsetH, maxWidth, checkboxes, checkboxHei
   ctx.font = ctxFont;
 }
 var checkboxBorderWidth = fromCssSize(4);
-function drawCheckbox(ctx, offsetW, offsetH, width, height, radius, text, textWidth, getColor, grade, nightGrade) {
-  ctx.strokeStyle = getColor(0, 0);
+function drawCheckbox(ctx, offsetW, offsetH, width, height, radius, text, textWidth, getDynamicColor, grade, nightGrade, zoomGrade) {
+  ctx.strokeStyle = getDynamicColor(zoomGrade, 0, 0);
   ctx.lineWidth = checkboxBorderWidth;
   ctx.beginPath();
-  ctx.fillStyle = getColor(1 - grade, nightGrade);
+  ctx.fillStyle = getDynamicColor(zoomGrade, 1 - grade, nightGrade);
   drawRoundedRect(ctx, offsetW, offsetW + width, offsetH, offsetH + height, radius, radius);
   ctx.closePath();
   ctx.stroke();
   ctx.fill();
-  ctx.fillStyle = getColor(grade, 0);
+  ctx.fillStyle = getDynamicColor(zoomGrade, grade, 0);
   ctx.strokeStyle = ctx.fillStyle;
   ctx.fillText(text, offsetW + 0.75 * height + height * grade / 3, offsetH + 2 / 3 * height);
 
@@ -803,7 +807,7 @@ function drawStackedBars(ctx, x, bars, summedBars, lineStates, lineGrades, lineC
     var bar = bars[j];
     var label = bar[0];
     ctx.beginPath();
-    ctx.fillStyle = lineColors[label](pickedAlpha, nightGrade, zoomGrade);
+    ctx.fillStyle = lineColors[label](zoomGrade, pickedAlpha, nightGrade);
     var dY = bar[fromIndex] * lineGrades[label];
     var prevX = offsetLeft + scaleX * fromIndex;
     var prevY = offsetTop - summedBars[1] * scaleY;
@@ -834,7 +838,7 @@ function drawStackedBars(ctx, x, bars, summedBars, lineStates, lineGrades, lineC
       var _bar = bars[_j];
       var _label2 = _bar[0];
       ctx.beginPath();
-      ctx.fillStyle = lineColors[_label2](0, nightGrade, zoomGrade);
+      ctx.fillStyle = lineColors[_label2](zoomGrade, 0, nightGrade);
 
       var _dY2 = _bar[pickedIndex] * lineGrades[_label2];
 
@@ -982,7 +986,7 @@ function sumBars(x, bars, barGrades, left, right) {
   for (var i = from; i <= to; i++) {
     var sum = 0;
 
-    for (var j = 1; j < bars.length; j++) {
+    for (var j = 0; j < bars.length; j++) {
       sum += bars[j][i] * barGrades[bars[j][0]];
     }
 
@@ -1033,11 +1037,11 @@ function dynamicHexColor(fromHex, fromAlpha, toHex, toAlpha, toAltHex, toAltAlph
   var toAltDB = getB(toAltHex) - fromB;
   var toDAlpha = toAlpha - fromAlpha;
   var toDAltAlpha = toAltAlpha - fromAlpha;
-  return function (grade) {
-    var pickGrade = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : 0;
-    var alphaGrade = arguments.length > 2 && arguments[2] !== undefined ? arguments[2] : 1;
+  return function (alpha) {
+    var grade = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : 0;
+    var pickGrade = arguments.length > 2 && arguments[2] !== undefined ? arguments[2] : 0;
     var notPickGrade = 1 - pickGrade;
-    return colorFromRGBA((fromR + toDR * grade) * notPickGrade + (fromR + toAltDR * grade) * pickGrade, (fromG + toDG * grade) * notPickGrade + (fromG + toAltDG * grade) * pickGrade, (fromB + toDB * grade) * notPickGrade + (fromB + toAltDB * grade) * pickGrade, ((fromAlpha + toDAlpha * grade) * notPickGrade + (fromAlpha + toDAltAlpha * grade) * pickGrade) * alphaGrade);
+    return colorFromRGBA((fromR + toDR * grade) * notPickGrade + (fromR + toAltDR * grade) * pickGrade, (fromG + toDG * grade) * notPickGrade + (fromG + toAltDG * grade) * pickGrade, (fromB + toDB * grade) * notPickGrade + (fromB + toAltDB * grade) * pickGrade, ((fromAlpha + toDAlpha * grade) * notPickGrade + (fromAlpha + toDAltAlpha * grade) * pickGrade) * alpha);
   };
 }
 
@@ -1422,11 +1426,11 @@ function () {
     }
   }, {
     key: "toggle",
-    value: function toggle(label) {
-      this.lineStates[label] = !this.lineStates[label];
-      var to = +this.lineStates[label];
-      this.addAnimation(this.lineGrades, label, to, this.animationDurationMs);
-      this.addAnimation(this.checkboxes[this.checkboxLabelToIndex[label]], 'grade', to, this.animationDurationMs, 'checkbox_' + label);
+    value: function toggle(ref, label) {
+      ref.lineStates[label] = !ref.lineStates[label];
+      var to = +ref.lineStates[label];
+      this.addAnimation(ref.lineGrades, label, to, this.animationDurationMs);
+      this.addAnimation(ref.checkboxes[ref.checkboxLabelToIndex[label]], 'grade', to, this.animationDurationMs, 'checkbox_' + label);
       this.animate();
     }
   }, {
@@ -1470,10 +1474,9 @@ function () {
         drawZoomOutControl(this.ctx, this.padW, 0, this.headerHeight, this.headerFontSize, this.textFont, this.getZoomOutColor, this.nightGrade, this.zoomToGrade, this.zoomOutCoords);
         drawDateRangeSummary(this.ctx, this.padW, 0, this.chartWidth, this.headerHeight, this.headerFontSize, details.x[1], details.xDiff, details.currentLeft, details.currentRight, false, this.dateRangeFontSize, this.textFont, this.getLegendFontColor, this.nightGrade, this.zoomToGrade);
         this.drawView(details, true, 'hours', 'hours', this.zoomToGrade);
-      } // redraw only if checked
+      }
 
-
-      drawCheckboxes(this.ctx, this.padW, this.checkboxesOffsetH, this.chartWidth, this.checkboxes, this.checkboxHeight, this.checkboxRadius, this.checkboxMargin, this.textFont, this.nightGrade);
+      this.drawCheckboxes(this.ref, true, 'hours', 'hours', this.zoomToGrade);
     }
   }, {
     key: "drawView",
@@ -1500,7 +1503,7 @@ function () {
     key: "drawDates",
     value: function drawDates(ref, shrink, yAxisdateFormat, legendDateFormat, zoomGrade) {
       // redraw only if moving
-      utils_drawDates(this.ctx, this.padW, this.datesOffsetH, this.chartWidth / ref.currentRange, ref.x[1], ref.xDiff, yAxisdateFormat, ref.currentLeft, ref.currentRight, this.fromPeriod, this.toPeriod, this.datesGrade, this.getAxisColor, this.nightGrade, zoomGrade);
+      utils_drawDates(this.ctx, this.padW, this.datesOffsetH, this.chartWidth / ref.currentRange, ref.x[1], ref.xDiff, yAxisdateFormat, ref.currentLeft, ref.currentRight, ref.fromPeriod, ref.toPeriod, ref.datesGrade, this.getAxisColor, this.nightGrade, zoomGrade);
     }
   }, {
     key: "drawPreview",
@@ -1514,6 +1517,12 @@ function () {
   }, {
     key: "drawLegend",
     value: function drawLegend(ref, shrink, yAxisdateFormat, legendDateFormat, zoomGrade) {}
+  }, {
+    key: "drawCheckboxes",
+    value: function drawCheckboxes(ref) {
+      // redraw only if checked
+      utils_drawCheckboxes(this.ctx, this.padW, ref.checkboxesOffsetH, this.chartWidth, ref.checkboxes, this.checkboxHeight, this.checkboxRadius, this.checkboxMargin, this.textFont, this.nightGrade, 1);
+    }
   }, {
     key: "calc",
     value: function calc(ref) {
@@ -1623,6 +1632,12 @@ function () {
         currentRight: currentRight,
         currentRange: currentRange,
         lineStates: this.lineStates,
+        lineGrades: this.lineGrades,
+        lineColors: this.lineColors,
+        lineLabels: this.lineLabels,
+        checkboxesOffsetH: this.checkboxesOffsetH,
+        checkboxes: this.checkboxes,
+        checkboxLabelToIndex: this.checkboxLabelToIndex,
         fromPeriod: 0,
         toPeriod: 0,
         datesGrade: 1,
@@ -1728,12 +1743,12 @@ function () {
     }
   }, {
     key: "getLabel",
-    value: function getLabel(x, y) {
+    value: function getLabel(ref, x, y) {
       var border = this.getBoundingClientRect();
       var canvasX = fromCssSize(x - border.left);
       var canvasY = fromCssSize(y - border.top);
 
-      if (canvasY < this.checkboxesOffsetH) {
+      if (canvasY < ref.checkboxesOffsetH) {
         return;
       }
 
@@ -1742,7 +1757,7 @@ function () {
       var _iteratorError2 = undefined;
 
       try {
-        for (var _iterator2 = this.checkboxes[Symbol.iterator](), _step2; !(_iteratorNormalCompletion2 = (_step2 = _iterator2.next()).done); _iteratorNormalCompletion2 = true) {
+        for (var _iterator2 = ref.checkboxes[Symbol.iterator](), _step2; !(_iteratorNormalCompletion2 = (_step2 = _iterator2.next()).done); _iteratorNormalCompletion2 = true) {
           var c = _step2.value;
 
           if (c.x <= canvasX && c.toX >= canvasX && c.y <= canvasY && c.toY >= canvasY) {
@@ -1780,10 +1795,10 @@ function () {
   }, {
     key: "clickCheckbox",
     value: function clickCheckbox(e) {
-      var label = this.getLabel(e.clientX, e.clientY);
+      var label = this.getLabel(this.ref, e.clientX, e.clientY);
 
       if (label) {
-        this.toggle(label);
+        this.toggle(this.ref, label);
       }
     }
   }, {
@@ -2495,8 +2510,12 @@ function (_AnimatableChart) {
     }
   }, {
     key: "getDetails",
-    value: function getDetails(index) {
+    value: function getDetails(index, skip) {
       var details = bar_stacked_get(bar_stacked_getPrototypeOf(StackedBarChart.prototype), "getDetails", this).call(this, index);
+
+      if (skip) {
+        return details;
+      }
 
       var columns = this.mergeZoomedColumns(details.fromLeft, details.toRight);
       var data = {
@@ -2541,9 +2560,17 @@ function bar_typeof(obj) { if (typeof Symbol === "function" && typeof Symbol.ite
 
 function bar_classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
 
+function bar_defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } }
+
+function bar_createClass(Constructor, protoProps, staticProps) { if (protoProps) bar_defineProperties(Constructor.prototype, protoProps); if (staticProps) bar_defineProperties(Constructor, staticProps); return Constructor; }
+
 function bar_possibleConstructorReturn(self, call) { if (call && (bar_typeof(call) === "object" || typeof call === "function")) { return call; } return bar_assertThisInitialized(self); }
 
 function bar_assertThisInitialized(self) { if (self === void 0) { throw new ReferenceError("this hasn't been initialised - super() hasn't been called"); } return self; }
+
+function bar_get(target, property, receiver) { if (typeof Reflect !== "undefined" && Reflect.get) { bar_get = Reflect.get; } else { bar_get = function _get(target, property, receiver) { var base = bar_superPropBase(target, property); if (!base) return; var desc = Object.getOwnPropertyDescriptor(base, property); if (desc.get) { return desc.get.call(receiver); } return desc.value; }; } return bar_get(target, property, receiver || target); }
+
+function bar_superPropBase(object, property) { while (!Object.prototype.hasOwnProperty.call(object, property)) { object = bar_getPrototypeOf(object); if (object === null) break; } return object; }
 
 function bar_getPrototypeOf(o) { bar_getPrototypeOf = Object.setPrototypeOf ? Object.getPrototypeOf : function _getPrototypeOf(o) { return o.__proto__ || Object.getPrototypeOf(o); }; return bar_getPrototypeOf(o); }
 
@@ -2553,19 +2580,235 @@ function bar_setPrototypeOf(o, p) { bar_setPrototypeOf = Object.setPrototypeOf |
 
 
 
-var BarChart =
+
+var bar_BarChart =
 /*#__PURE__*/
-function (_AnimatableChart) {
-  bar_inherits(BarChart, _AnimatableChart);
+function (_StackedBarChart) {
+  bar_inherits(BarChart, _StackedBarChart);
 
   function BarChart(data, options) {
+    var _this;
+
     bar_classCallCheck(this, BarChart);
 
-    return bar_possibleConstructorReturn(this, bar_getPrototypeOf(BarChart).call(this, data, options));
+    _this = bar_possibleConstructorReturn(this, bar_getPrototypeOf(BarChart).call(this, data, options));
+    _this.detailsColors = ['#4681BB', '#466FB3', '#479FC4'];
+    return _this;
   }
 
+  bar_createClass(BarChart, [{
+    key: "drawChart",
+    value: function drawChart(ref, shrink, yAxisdateFormat, legendDateFormat, zoomGrade) {
+      if (ref === this) {
+        return bar_get(bar_getPrototypeOf(BarChart.prototype), "drawChart", this).call(this, ref, shrink, yAxisdateFormat, legendDateFormat, zoomGrade);
+      }
+
+      drawLines(this.ctx, ref.x, ref.lines, ref.lineStates, ref.lineGrades, ref.lineColors, this.chartWidth, this.chartHeight + this.padH - ref.yAlign.top, this.padW, this.headerHeight + ref.yAlign.top, ref.yAlign.bottom, ref.currentLeft, ref.currentRight, ref.xDiff * ref.currentRange, ref.currentMaxHeight, ref.currentMinHeight, this.lineWidth, zoomGrade, shrink);
+    }
+  }, {
+    key: "drawPreview",
+    value: function drawPreview(ref, shrink, yAxisdateFormat, legendDateFormat, zoomGrade) {
+      if (ref === this) {
+        return bar_get(bar_getPrototypeOf(BarChart.prototype), "drawPreview", this).call(this, ref, shrink, yAxisdateFormat, legendDateFormat, zoomGrade);
+      }
+    }
+  }, {
+    key: "drawScroll",
+    value: function drawScroll(ref, shrink, yAxisdateFormat, legendDateFormat, zoomGrade) {
+      if (ref === this) {
+        return bar_get(bar_getPrototypeOf(BarChart.prototype), "drawScroll", this).call(this, ref, shrink, yAxisdateFormat, legendDateFormat, zoomGrade);
+      }
+    }
+  }, {
+    key: "drawLegend",
+    value: function drawLegend(ref, shrink, yAxisdateFormat, legendDateFormat, zoomGrade) {
+      if (ref === this) {
+        return bar_get(bar_getPrototypeOf(BarChart.prototype), "drawLegend", this).call(this, ref, shrink, yAxisdateFormat, legendDateFormat, zoomGrade);
+      }
+
+      drawRuller(this.ctx, this.padW, this.headerHeight + this.padH, this.rullerWidth, this.chartHeight, this.chartWidth, ref.currentLeft, ref.currentRight, ref.currentRange, ref.legendPosition, this.getRullerColor, zoomGrade, this.nightGrade);
+      var _iteratorNormalCompletion = true;
+      var _didIteratorError = false;
+      var _iteratorError = undefined;
+
+      try {
+        for (var _iterator = ref.lines[Symbol.iterator](), _step; !(_iteratorNormalCompletion = (_step = _iterator.next()).done); _iteratorNormalCompletion = true) {
+          var line = _step.value;
+          drawLinesCross(this.ctx, ref.x, line, ref.lineLabels, ref.lineStates, ref.lineGrades, ref.lineColors, this.lineWidth, ref.legendPosition, ref.pickedIndex, this.padW, this.headerHeight, ref.currentLeft, ref.currentRight, ref.currentRange, this.chartWidth, this.chartHeight + this.padH, ref.xDiff, ref.yAlign.top, ref.yAlign.bottom, ref.currentMaxHeight, ref.currentMinHeight, this.getBackgroundColor, this.nightGrade, zoomGrade);
+        }
+      } catch (err) {
+        _didIteratorError = true;
+        _iteratorError = err;
+      } finally {
+        try {
+          if (!_iteratorNormalCompletion && _iterator.return != null) {
+            _iterator.return();
+          }
+        } finally {
+          if (_didIteratorError) {
+            throw _iteratorError;
+          }
+        }
+      }
+
+      drawLinesLegend(this.ctx, ref.x, [ref.lines], ref.lineLabels, ref.lineStates, ref.lineGrades, ref.lineColors, this.lineWidth, ref.legendPosition, ref.pickedIndex, this.padW, this.headerHeight + this.padH, ref.currentLeft, ref.currentRight, ref.currentRange, this.chartWidth, this.chartHeight + this.padH, ref.xDiff, [[ref.yAlign.top, ref.yAlign.bottom, ref.currentMaxHeight, ref.currentMinHeight]], this.legendTextSize, this.textFont, this.getLegendColor, this.getLegendBorderColor, this.getLegendFontColor, this.getBackgroundColor, zoomGrade, this.nightGrade, ref.legendCoordinates, zoomGrade, legendDateFormat, this.zoomState === 'overview');
+    }
+  }, {
+    key: "drawCheckboxes",
+    value: function drawCheckboxes(ref, shrink, yAxisdateFormat, legendDateFormat, zoomGrade) {
+      if (ref === this) {
+        return;
+      } // redraw only if checked
+
+
+      utils_drawCheckboxes(this.ctx, this.padW, ref.checkboxesOffsetH, this.chartWidth, ref.checkboxes, this.checkboxHeight, this.checkboxRadius, this.checkboxMargin, this.textFont, this.nightGrade, zoomGrade);
+    }
+  }, {
+    key: "calc",
+    value: function calc(ref) {
+      bar_get(bar_getPrototypeOf(BarChart.prototype), "calc", this).call(this, ref);
+
+      this.calcHeight(ref);
+      this.calcYAlignment(ref);
+    }
+  }, {
+    key: "calcYAlignment",
+    value: function calcYAlignment(ref) {
+      var chartHeight = this.chartHeight + this.padH;
+      var linesDiff = chartHeight / 6;
+
+      utils_calcYAlignment(ref.toMaxHeight, ref.toMinHeight, chartHeight - this.padH, this.padH, chartHeight - linesDiff, linesDiff, chartHeight, ref.yAlign);
+    }
+  }, {
+    key: "calcHeight",
+    value: function calcHeight(ref) {
+      if (ref === this) {
+        return bar_get(bar_getPrototypeOf(BarChart.prototype), "calcHeight", this).call(this, ref);
+      }
+
+      var visibleMaxHeight = getMaxY(ref.x, ref.lines, ref.lineStates, ref.currentLeft, ref.currentRight);
+
+      if (visibleMaxHeight !== ref.toMaxHeight) {
+        var uniqName = this.zoomState + 'currentMaxHeight';
+        this.addAnimation(ref, 'currentMaxHeight', visibleMaxHeight, this.animationDurationMs, uniqName);
+        this.animate();
+      }
+
+      var visibleMinHeight = getMinY(ref.x, ref.lines, ref.lineStates, ref.currentLeft, ref.currentRight);
+
+      if (visibleMinHeight !== ref.toMinHeight) {
+        var _uniqName = this.zoomState + 'currentMinHeight';
+
+        this.addAnimation(ref, 'currentMinHeight', visibleMinHeight, this.animationDurationMs, _uniqName);
+        this.animate();
+      }
+
+      var maxAnim = this.animations[this.zoomState + 'currentMaxHeight'];
+
+      if (maxAnim) {
+        ref.fromMaxHeight = maxAnim.from;
+        ref.toMaxHeight = maxAnim.to;
+      }
+
+      var minAnim = this.animations[this.zoomState + 'currentMinHeight'];
+
+      if (minAnim) {
+        ref.fromMinHeight = minAnim.from;
+        ref.toMinHeight = minAnim.to;
+      }
+    }
+  }, {
+    key: "getDetails",
+    value: function getDetails(index) {
+      var details = bar_get(bar_getPrototypeOf(BarChart.prototype), "getDetails", this).call(this, index, true);
+
+      var indexes = [index];
+
+      if (index - 1 > 1) {
+        indexes.push(index - 1);
+      }
+
+      if (index - 2 > 1) {
+        indexes.push(Math.max(index - 7, 1));
+      }
+
+      var detailsAtIndex = this.details[this.x[index]];
+      var x = getX(detailsAtIndex);
+      var lines = [];
+      var checkboxes = [];
+      var checkboxLabelToIndex = {};
+      var i = 0;
+      var lineStates = {};
+      var lineGrades = {};
+      var lineColors = {};
+      var lineLabels = {};
+      var _arr = indexes;
+
+      for (var _i = 0; _i < _arr.length; _i++) {
+        var idx = _arr[_i];
+        var label = 'y' + idx;
+        var timestamp = this.x[idx];
+        var line = getLines(this.details[timestamp])[0];
+        line[0] = label;
+        lines.push(line);
+        lineLabels[label] = formatDate(timestamp, 'day');
+        var color = this.detailsColors[i];
+        lineStates[label] = true;
+        lineGrades[label] = 1;
+        lineColors[label] = animatableAlphaHEXcolor(color, 1);
+        checkboxLabelToIndex[label] = i++;
+        checkboxes.push({
+          id: 'y' + idx,
+          label: lineLabels[label],
+          getColor: dynamicHexColor(color, 1, '#FFFFFF', 1, '#26333F', 1),
+          grade: 1,
+          x: 0,
+          y: 0,
+          toX: 0,
+          toY: 0
+        });
+      }
+
+      var maxHeight = getMaxY(x, lines, lineStates, 0, 1);
+      var minHeight = getMinY(x, lines, lineStates, 0, 1);
+      var fromMaxHeight, toMaxHeight, currentMaxHeight, fromMinHeight, toMinHeight, currentMinHeight;
+      fromMaxHeight = toMaxHeight = currentMaxHeight = maxHeight;
+      fromMinHeight = toMinHeight = currentMinHeight = minHeight;
+      var xDiff = x[x.length - 1] - x[1];
+      details.checkboxes = checkboxes;
+      details.checkboxLabelToIndex = checkboxLabelToIndex;
+      details.checkboxesOffsetH = this.previewOffsetH;
+      details.lineStates = lineStates;
+      details.lineGrades = lineGrades;
+      details.lineColors = lineColors;
+      details.lineLabels = lineLabels;
+      details.currentLeft = 0;
+      details.currentRight = 1;
+      details.currentRange = 1;
+      details.x = x;
+      details.xDiff = xDiff;
+      details.lines = lines;
+      details.maxHeight = maxHeight;
+      details.minHeight = minHeight;
+      details.fromMaxHeight = fromMaxHeight;
+      details.toMaxHeight = toMaxHeight;
+      details.currentMaxHeight = currentMaxHeight;
+      details.fromMinHeight = fromMinHeight;
+      details.toMinHeight = toMinHeight;
+      details.currentMinHeight = currentMinHeight;
+      return details;
+    }
+  }, {
+    key: "setScroll",
+    value: function setScroll(ref, e) {
+      if (ref === this) {
+        bar_get(bar_getPrototypeOf(BarChart.prototype), "setScroll", this).call(this, ref, e);
+      }
+    }
+  }]);
+
   return BarChart;
-}(animatable_chart_AnimatedCanvas);
+}(bar_stacked_StackedBarChart);
 
 
 // CONCATENATED MODULE: ./lib/charts/pie.js
@@ -2699,7 +2942,7 @@ function (_AnimatableChart) {
       } else if (Object.keys(overview.types).some(function (k) {
         return overview.types[k] === 'bar';
       })) {
-        chart = new BarChart(data, {
+        chart = new bar_BarChart(data, {
           width: parent.offsetWidth,
           height: 320,
           fontFamily: 'Helvetica, sans-serif',

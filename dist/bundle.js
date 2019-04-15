@@ -2640,7 +2640,7 @@ function (_AnimatableChart) {
   }, {
     key: "drawPreview",
     value: function drawPreview(ref, shrink, yAxisdateFormat, legendDateFormat, zoomGrade) {
-      drawStackedBars(this.ctx, ref.x, ref.bars, ref.fullSummedBars.slice(0), this.lineGrades, this.lineColors, this.chartWidth, this.previewHeight, this.padW, this.previewOffsetH, 0, 0, 1, ref.maxHeight, zoomGrade, shrink);
+      drawStackedBars(this.ctx, ref.x, ref.bars, ref.fullSummedBars, this.lineGrades, this.lineColors, this.chartWidth, this.previewHeight, this.padW, this.previewOffsetH, 0, 0, 1, ref.maxHeight, zoomGrade, shrink);
     }
   }, {
     key: "drawLegend",
@@ -2666,6 +2666,8 @@ function (_AnimatableChart) {
     key: "calcHeight",
     value: function calcHeight(ref) {
       ref.summedBars = sumBars(ref.x, ref.bars, this.lineGrades, ref.currentLeft - this.padW / this.chartWidth, ref.currentRight + this.padW / this.chartWidth);
+      ref.fullSummedBars = sumBars(ref.x, ref.bars, this.lineGrades, 0, 1);
+      ref.maxHeight = ref.fullSummedBars[0];
       var newMaxHeight = ref.summedBars[0];
 
       if (newMaxHeight !== this.toMaxHeight) {

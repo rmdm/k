@@ -348,6 +348,13 @@ function utils_drawDates(ctx, offsetW, offsetH, scale, baseX, xDiff, format, lef
     drawDate(ctx, offsetW, offsetH, _timestamp, _p, left, scale);
   }
 }
+var dateOffset = fromCssSize(18);
+
+function drawDate(ctx, offsetW, offsetH, timestamp, format, position, left, scale) {
+  var text = formatDate(timestamp, format);
+  ctx.fillText(text, offsetW + (position - left) * scale - dateOffset, offsetH);
+}
+
 var shortMonths = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 var months = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 var shortDays = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
@@ -389,16 +396,10 @@ function leftPad(v) {
   return v < 10 ? '0' + v : v;
 }
 
-var dateOffset = fromCssSize(18);
-
-function drawDate(ctx, offsetW, offsetH, timestamp, format, position, left, scale) {
-  var text = formatDate(timestamp, format);
-  ctx.fillText(text, offsetW + (position - left) * scale - dateOffset, offsetH);
-}
-
 var controlWidth = fromCssSize(10);
 var previewPadding = fromCssSize(2);
 var controlRadius = fromCssSize(8);
+var decorColor = animatableAlphaHEXcolor('#FFFFFF', 1);
 function drawScrollControlls(ctx, offsetW, offsetH, width, height, from, to, getPreviewBlurColor, getPreviewControlColor, nightGrade, zoomGrade) {
   var left = offsetW + from * width + controlWidth;
   var right = offsetW + to * width - controlWidth;
@@ -422,6 +423,14 @@ function drawScrollControlls(ctx, offsetW, offsetH, width, height, from, to, get
   ctx.moveTo(left, toH);
   ctx.lineTo(right, toH);
   ctx.stroke();
+  ctx.fillStyle = decorColor(zoomGrade);
+  ctx.beginPath();
+  var ver = controlWidth / 2,
+      hor = (fromH + toH) / 2;
+  drawRoundedRect(ctx, left - ver - 2, left - ver + 2, hor - 8, hor + 8, 2, 2);
+  drawRoundedRect(ctx, right + ver - 2, right + ver + 2, hor - 8, hor + 8, 2, 2);
+  ctx.closePath();
+  ctx.fill();
 }
 function drawRoundedRect(ctx, fromX, toX, fromY, toY, leftRadius, rightRadius) {
   ctx.moveTo(fromX + leftRadius, fromY);
@@ -451,7 +460,7 @@ function utils_drawCheckboxes(ctx, offsetW, offsetH, maxWidth, checkboxes, check
 
       if (leftOffset + width + 1.5 * checkboxMargin > maxWidth) {
         leftOffset = offsetW;
-        topOffset = checkboxHeight + checkboxMargin;
+        topOffset += checkboxHeight + checkboxMargin;
       }
 
       drawCheckbox(ctx, leftOffset, topOffset, width, checkboxHeight, checkboxRadius, checkbox.label, textWidth, checkbox.getColor, checkbox.grade, nightGrade, zoomGrade);
@@ -792,7 +801,7 @@ function drawDateRangeSummary(ctx, offsetW, offsetH, width, headerHeight, header
   ctx.fillText(text, offsetW + width - ctx.measureText(text).width, offsetH + (headerHeight + fontSize) / 2 + (headerFontSize - fontSize) / 2);
   ctx.font = ctxFont;
 }
-function drawStackedBars(ctx, x, bars, summedBars, lineStates, lineGrades, lineColors, width, height, offsetW, offsetH, pickedIndex, left, right, maxHeight, zoomGrade, nightGrade, shrink) {
+function drawStackedBars(ctx, x, bars, summedBars, lineGrades, lineColors, width, height, offsetW, offsetH, pickedIndex, left, right, maxHeight, zoomGrade, nightGrade, shrink) {
   var scaleX = width / (right - left) / (x.length - 1);
   var scaleY = height / maxHeight;
   var offsetLeft = -left * width / (right - left) + offsetW - scaleX;
@@ -855,6 +864,72 @@ function drawStackedBars(ctx, x, bars, summedBars, lineStates, lineGrades, lineC
       ctx.closePath();
       ctx.fill();
     }
+  }
+}
+function drawArea(ctx, x, areas, summedAreas, referenceSummedAreas, lineGrades, lineColors, width, height, offsetW, offsetH, fromIndex, toIndex, left, right, zoomGrade, nightGrade, shrink) {
+  var fullWidth = width / (right - left);
+  var leftOffset = -fullWidth * left + offsetW;
+  var topOffset = offsetH + height;
+  var scaleX = fullWidth / (x.length - 2);
+
+  for (var j = areas.length - 1; j >= 0; j--) {
+    var area = areas[j];
+    ctx.fillStyle = lineColors[area[0]](zoomGrade);
+    ctx.beginPath();
+    var fullSum = referenceSummedAreas[1];
+    var currentSum = summedAreas[1];
+    var prevX = leftOffset + (fromIndex - 1) * scaleX;
+    ctx.moveTo(prevX, topOffset - height * currentSum / fullSum);
+    summedAreas[1] -= area[fromIndex] * lineGrades[area[0]];
+
+    for (var i = fromIndex; i < toIndex; i++) {
+      var idx = i - fromIndex + 2;
+      var _fullSum = referenceSummedAreas[idx];
+      var _currentSum = summedAreas[idx];
+      prevX = leftOffset + i * scaleX;
+      ctx.lineTo(prevX, topOffset - height * _currentSum / _fullSum);
+      summedAreas[idx] -= area[i + 1] * lineGrades[area[0]];
+    }
+
+    ctx.lineTo(prevX, topOffset);
+    ctx.lineTo(leftOffset + (fromIndex - 1) * scaleX, topOffset);
+    ctx.closePath();
+    ctx.fill();
+  }
+}
+function drawPie(ctx, lineLabels, lineGrades, lineColors, offsetW, offsetH, width, radius, shares, zoomGrade, coords) {
+  var centerX = offsetW + width / 2;
+  var centerY = offsetH + radius;
+  coords.centerX = centerX;
+  coords.centerY = centerY;
+  var startAngle = Math.PI * 7 / 6;
+  var lastAngle = startAngle;
+
+  for (var label in shares) {
+    var share = shares[label];
+    ctx.fillStyle = lineColors[label](zoomGrade);
+    var angle = share.procent * 2 * Math.PI;
+    var from = lastAngle;
+    var to = lastAngle + angle;
+    var xOffset = 0,
+        yOffset = 0;
+
+    if (share.grade > 0) {
+      var middle = (to + from) / 2;
+      xOffset = Math.cos(middle) * 30 * share.grade;
+      yOffset = Math.sin(middle) * 30 * share.grade;
+    }
+
+    ctx.beginPath();
+    ctx.arc(centerX + xOffset, centerY + yOffset, radius, from, to);
+    ctx.lineTo(centerX + xOffset, centerY + yOffset);
+    ctx.closePath();
+    ctx.fill();
+    coords.angles[label] = {
+      from: from,
+      to: to
+    };
+    lastAngle = to;
   }
 }
 function getLowerIndex(x, procent) {
@@ -1000,8 +1075,78 @@ function sumBars(x, bars, barGrades, left, right) {
   return result;
 }
 
+function getDataType(data, type) {
+  var result = [];
+  var _iteratorNormalCompletion8 = true;
+  var _didIteratorError8 = false;
+  var _iteratorError8 = undefined;
+
+  try {
+    for (var _iterator8 = data.columns[Symbol.iterator](), _step8; !(_iteratorNormalCompletion8 = (_step8 = _iterator8.next()).done); _iteratorNormalCompletion8 = true) {
+      var column = _step8.value;
+
+      if (data.types[column[0]] === type) {
+        result.push(column);
+      }
+    }
+  } catch (err) {
+    _didIteratorError8 = true;
+    _iteratorError8 = err;
+  } finally {
+    try {
+      if (!_iteratorNormalCompletion8 && _iterator8.return != null) {
+        _iterator8.return();
+      }
+    } finally {
+      if (_didIteratorError8) {
+        throw _iteratorError8;
+      }
+    }
+  }
+
+  return result;
+}
+
+function getLines(data) {
+  return getDataType(data, 'line');
+}
+function getBars(data) {
+  return getDataType(data, 'bar');
+}
+function getAreas(data) {
+  return getDataType(data, 'area');
+}
+function getX(data) {
+  var _iteratorNormalCompletion9 = true;
+  var _didIteratorError9 = false;
+  var _iteratorError9 = undefined;
+
+  try {
+    for (var _iterator9 = data.columns[Symbol.iterator](), _step9; !(_iteratorNormalCompletion9 = (_step9 = _iterator9.next()).done); _iteratorNormalCompletion9 = true) {
+      var column = _step9.value;
+
+      if (data.types[column[0]] === 'x') {
+        return column;
+      }
+    }
+  } catch (err) {
+    _didIteratorError9 = true;
+    _iteratorError9 = err;
+  } finally {
+    try {
+      if (!_iteratorNormalCompletion9 && _iterator9.return != null) {
+        _iterator9.return();
+      }
+    } finally {
+      if (_didIteratorError9) {
+        throw _iteratorError9;
+      }
+    }
+  }
+}
+
 function colorFromRGBA(r, g, b, a) {
-  return 'rgba(' + r + ',' + g + ',' + b + ',' + a + ')';
+  return 'rgba(' + (r | 0) + ',' + (g | 0) + ',' + (b | 0) + ',' + a + ')';
 }
 
 function animatableAlphaHEXcolor(hex, alpha) {
@@ -1057,72 +1202,6 @@ function getB(hex) {
   return parseInt(hex.slice(5), 16);
 }
 
-function getDataType(data, type) {
-  var result = [];
-  var _iteratorNormalCompletion8 = true;
-  var _didIteratorError8 = false;
-  var _iteratorError8 = undefined;
-
-  try {
-    for (var _iterator8 = data.columns[Symbol.iterator](), _step8; !(_iteratorNormalCompletion8 = (_step8 = _iterator8.next()).done); _iteratorNormalCompletion8 = true) {
-      var column = _step8.value;
-
-      if (data.types[column[0]] === type) {
-        result.push(column);
-      }
-    }
-  } catch (err) {
-    _didIteratorError8 = true;
-    _iteratorError8 = err;
-  } finally {
-    try {
-      if (!_iteratorNormalCompletion8 && _iterator8.return != null) {
-        _iterator8.return();
-      }
-    } finally {
-      if (_didIteratorError8) {
-        throw _iteratorError8;
-      }
-    }
-  }
-
-  return result;
-}
-
-function getLines(data) {
-  return getDataType(data, 'line');
-}
-function getBars(data) {
-  return getDataType(data, 'bar');
-}
-function getX(data) {
-  var _iteratorNormalCompletion9 = true;
-  var _didIteratorError9 = false;
-  var _iteratorError9 = undefined;
-
-  try {
-    for (var _iterator9 = data.columns[Symbol.iterator](), _step9; !(_iteratorNormalCompletion9 = (_step9 = _iterator9.next()).done); _iteratorNormalCompletion9 = true) {
-      var column = _step9.value;
-
-      if (data.types[column[0]] === 'x') {
-        return column;
-      }
-    }
-  } catch (err) {
-    _didIteratorError9 = true;
-    _iteratorError9 = err;
-  } finally {
-    try {
-      if (!_iteratorNormalCompletion9 && _iterator9.return != null) {
-        _iterator9.return();
-      }
-    } finally {
-      if (_didIteratorError9) {
-        throw _iteratorError9;
-      }
-    }
-  }
-}
 function dynamicHexColorWithBlending(fromHex, fromAlpha, mask1, alpha1, mask2, alpha2) {
   var _blendColors = blendColors(fromHex, fromAlpha, mask1, alpha1),
       _blendColors2 = _slicedToArray(_blendColors, 2),
@@ -1244,6 +1323,8 @@ function () {
       top: 0,
       bottom: 0
     };
+    this.longTapTime = 0;
+    this.longTapTout = null;
     this.el.addEventListener('mousedown', function (e) {
       return _this.onMouseDown(e);
     });
@@ -1427,6 +1508,38 @@ function () {
   }, {
     key: "toggle",
     value: function toggle(ref, label) {
+      var isLast = true;
+      var _iteratorNormalCompletion = true;
+      var _didIteratorError = false;
+      var _iteratorError = undefined;
+
+      try {
+        for (var _iterator = this.checkboxes[Symbol.iterator](), _step; !(_iteratorNormalCompletion = (_step = _iterator.next()).done); _iteratorNormalCompletion = true) {
+          var checkbox = _step.value;
+
+          if (checkbox.id !== label && this.lineStates[checkbox.id]) {
+            isLast = false;
+          }
+        }
+      } catch (err) {
+        _didIteratorError = true;
+        _iteratorError = err;
+      } finally {
+        try {
+          if (!_iteratorNormalCompletion && _iterator.return != null) {
+            _iterator.return();
+          }
+        } finally {
+          if (_didIteratorError) {
+            throw _iteratorError;
+          }
+        }
+      }
+
+      if (isLast) {
+        return;
+      }
+
       ref.lineStates[label] = !ref.lineStates[label];
       var to = +ref.lineStates[label];
       this.addAnimation(ref.lineGrades, label, to, this.animationDurationMs);
@@ -1543,18 +1656,19 @@ function () {
       var currentDiff = ref.toPeriod * this.chartWidth / ref.currentRange;
 
       if (currentDiff >= 2 * this.datesDiff) {
-        var uniqName = this.zoomState + 'datesGrade';
         ref.fromPeriod = ref.toPeriod;
         ref.toPeriod = ref.toPeriod / 2;
         ref.datesGrade = 0;
+        var uniqName = this.zoomState + 'datesGrade';
         this.addAnimation(ref, 'datesGrade', 1, this.animationDurationMs, uniqName);
         this.animate();
       } else if (currentDiff < this.datesDiff) {
-        var _uniqName = this.zoomState + 'datesGrade';
-
         ref.fromPeriod = ref.toPeriod;
         ref.toPeriod = ref.toPeriod * 2;
-        this.datesGrade = 0;
+        ref.datesGrade = 0;
+
+        var _uniqName = this.zoomState + 'datesGrade';
+
         this.addAnimation(ref, 'datesGrade', 1, this.animationDurationMs, _uniqName);
         this.animate();
       }
@@ -1568,13 +1682,13 @@ function () {
       for (var _i = from; _i <= to; _i++) {
         var timestamp = this.x[_i];
         var details = this.details[timestamp];
-        var _iteratorNormalCompletion = true;
-        var _didIteratorError = false;
-        var _iteratorError = undefined;
+        var _iteratorNormalCompletion2 = true;
+        var _didIteratorError2 = false;
+        var _iteratorError2 = undefined;
 
         try {
-          for (var _iterator = details.columns[Symbol.iterator](), _step; !(_iteratorNormalCompletion = (_step = _iterator.next()).done); _iteratorNormalCompletion = true) {
-            var column = _step.value;
+          for (var _iterator2 = details.columns[Symbol.iterator](), _step2; !(_iteratorNormalCompletion2 = (_step2 = _iterator2.next()).done); _iteratorNormalCompletion2 = true) {
+            var column = _step2.value;
 
             if (lineIdToIndexMap[column[0]] === undefined) {
               lineIdToIndexMap[column[0]] = columns.length;
@@ -1590,16 +1704,16 @@ function () {
             }
           }
         } catch (err) {
-          _didIteratorError = true;
-          _iteratorError = err;
+          _didIteratorError2 = true;
+          _iteratorError2 = err;
         } finally {
           try {
-            if (!_iteratorNormalCompletion && _iterator.return != null) {
-              _iterator.return();
+            if (!_iteratorNormalCompletion2 && _iterator2.return != null) {
+              _iterator2.return();
             }
           } finally {
-            if (_didIteratorError) {
-              throw _iteratorError;
+            if (_didIteratorError2) {
+              throw _iteratorError2;
             }
           }
         }
@@ -1626,6 +1740,8 @@ function () {
       var currentRight = scrollRight = currentLeft + 1 / 7;
       var currentRange = currentRight - currentLeft;
       return {
+        x: this.x,
+        xDiff: this.x[this.x.length - 1] - this.x[1],
         fromLeft: fromLeft,
         toRight: toRight,
         currentLeft: currentLeft,
@@ -1752,29 +1868,29 @@ function () {
         return;
       }
 
-      var _iteratorNormalCompletion2 = true;
-      var _didIteratorError2 = false;
-      var _iteratorError2 = undefined;
+      var _iteratorNormalCompletion3 = true;
+      var _didIteratorError3 = false;
+      var _iteratorError3 = undefined;
 
       try {
-        for (var _iterator2 = ref.checkboxes[Symbol.iterator](), _step2; !(_iteratorNormalCompletion2 = (_step2 = _iterator2.next()).done); _iteratorNormalCompletion2 = true) {
-          var c = _step2.value;
+        for (var _iterator3 = ref.checkboxes[Symbol.iterator](), _step3; !(_iteratorNormalCompletion3 = (_step3 = _iterator3.next()).done); _iteratorNormalCompletion3 = true) {
+          var c = _step3.value;
 
           if (c.x <= canvasX && c.toX >= canvasX && c.y <= canvasY && c.toY >= canvasY) {
             return c.id;
           }
         }
       } catch (err) {
-        _didIteratorError2 = true;
-        _iteratorError2 = err;
+        _didIteratorError3 = true;
+        _iteratorError3 = err;
       } finally {
         try {
-          if (!_iteratorNormalCompletion2 && _iterator2.return != null) {
-            _iterator2.return();
+          if (!_iteratorNormalCompletion3 && _iterator3.return != null) {
+            _iterator3.return();
           }
         } finally {
-          if (_didIteratorError2) {
-            throw _iteratorError2;
+          if (_didIteratorError3) {
+            throw _iteratorError3;
           }
         }
       }
@@ -1799,6 +1915,44 @@ function () {
 
       if (label) {
         this.toggle(this.ref, label);
+      }
+    }
+  }, {
+    key: "unclickCheckbox",
+    value: function unclickCheckbox(e) {
+      var label = this.getLabel(this.ref, e.clientX, e.clientY);
+
+      if (label) {
+        if (!this.lineStates[label]) {
+          this.toggle(this.ref, label);
+        }
+
+        var _iteratorNormalCompletion4 = true;
+        var _didIteratorError4 = false;
+        var _iteratorError4 = undefined;
+
+        try {
+          for (var _iterator4 = this.checkboxes[Symbol.iterator](), _step4; !(_iteratorNormalCompletion4 = (_step4 = _iterator4.next()).done); _iteratorNormalCompletion4 = true) {
+            var checkbox = _step4.value;
+
+            if (checkbox.id !== label && this.lineStates[checkbox.id]) {
+              this.toggle(this.ref, checkbox.id);
+            }
+          }
+        } catch (err) {
+          _didIteratorError4 = true;
+          _iteratorError4 = err;
+        } finally {
+          try {
+            if (!_iteratorNormalCompletion4 && _iterator4.return != null) {
+              _iterator4.return();
+            }
+          } finally {
+            if (_didIteratorError4) {
+              throw _iteratorError4;
+            }
+          }
+        }
       }
     }
   }, {
@@ -1904,14 +2058,18 @@ function () {
   }, {
     key: "onMouseDown",
     value: function onMouseDown(e) {
+      var _this3 = this;
+
       e.stopPropagation();
       this.setScroll(this.ref, e);
-      this.clickCheckbox(e);
-      this.clickZoomOut(e);
 
       if (!this.clickLegend(this.ref, e)) {
         this.showLegend(this.ref, e);
       }
+
+      this.longTapTout = setTimeout(function () {
+        _this3.unclickCheckbox(e);
+      }, 500);
     }
   }, {
     key: "onMouseMove",
@@ -1919,6 +2077,7 @@ function () {
       e.stopPropagation();
       this.setMove(this.ref, e.clientX);
       this.moveLegend(this.ref, e);
+      clearTimeout(this.longTapTout);
     }
   }, {
     key: "onMouseUp",
@@ -1926,25 +2085,33 @@ function () {
       e.stopPropagation();
       this.setNoMove(this.ref);
       this.stopMovingLegend(this.ref);
+      this.clickCheckbox(e);
+      this.clickZoomOut(e);
+      clearTimeout(this.longTapTout);
     }
   }, {
     key: "onMouseLeave",
     value: function onMouseLeave(e) {
       e.stopPropagation();
       this.setNoMove(this.ref);
+      clearTimeout(this.longTapTout);
     }
   }, {
     key: "onTouchStart",
     value: function onTouchStart(e) {
+      var _this4 = this;
+
       e.stopPropagation();
       var ev = e.targetTouches[0];
       this.setScroll(this.ref, ev);
-      this.clickCheckbox(ev);
-      this.clickZoomOut(ev);
 
       if (!this.clickLegend(this.ref, ev)) {
         this.showLegend(this.ref, ev);
       }
+
+      this.longTapTout = setTimeout(function () {
+        _this4.unclickCheckbox(ev);
+      }, 500);
     }
   }, {
     key: "onTouchMove",
@@ -1953,13 +2120,19 @@ function () {
       var ev = e.targetTouches[0];
       this.setMove(this.ref, ev.clientX);
       this.moveLegend(this.ref, ev);
+      clearTimeout(this.longTapTout);
     }
   }, {
     key: "onTouchEnd",
     value: function onTouchEnd(e) {
       e.stopPropagation();
-      this.setNoMove();
+      e.preventDefault();
+      var ev = e.changedTouches[0];
+      this.setNoMove(this.ref);
       this.stopMovingLegend(this.ref);
+      this.clickCheckbox(ev);
+      this.clickZoomOut(ev);
+      clearTimeout(this.longTapTout);
     }
   }, {
     key: "nightMode",
@@ -2066,7 +2239,7 @@ function (_AnimatableChart) {
         }
       }
 
-      drawLinesLegend(this.ctx, ref.x, [ref.lines], this.lineLabels, this.lineStates, this.lineGrades, this.lineColors, this.lineWidth, ref.legendPosition, ref.pickedIndex, this.padW, this.headerHeight + this.padH, ref.currentLeft, ref.currentRight, ref.currentRange, this.chartWidth, this.chartHeight + this.padH, ref.xDiff, [[ref.yAlign.top, ref.yAlign.bottom, ref.currentMaxHeight, ref.currentMinHeight]], this.legendTextSize, this.textFont, this.getLegendColor, this.getLegendBorderColor, this.getLegendFontColor, this.getBackgroundColor, zoomGrade, this.nightGrade, ref.legendCoordinates, zoomGrade, legendDateFormat, this.zoomState === 'overview');
+      drawLinesLegend(this.ctx, ref.x, [ref.lines], this.lineLabels, this.lineStates, this.lineGrades, this.lineColors, this.lineWidth, ref.legendPosition, ref.pickedIndex, this.padW, this.headerHeight + this.padH, ref.currentLeft, ref.currentRight, ref.currentRange, this.chartWidth, this.chartHeight + this.padH, ref.xDiff, [[ref.yAlign.top, ref.yAlign.bottom, ref.currentMaxHeight, ref.currentMinHeight]], this.legendTextSize, this.textFont, this.getLegendColor, this.getLegendBorderColor, this.getLegendFontColor, this.getBackgroundColor, zoomGrade, this.nightGrade, ref.legendCoordinates, zoomGrade, legendDateFormat, ref === this);
     }
   }, {
     key: "calc",
@@ -2285,7 +2458,7 @@ function (_LineChart) {
         }
       }
 
-      drawLinesLegend(this.ctx, ref.x, [ref.lines, ref.lines2], this.lineLabels, this.lineStates, this.lineGrades, this.lineColors, this.lineWidth, ref.legendPosition, ref.pickedIndex, this.padW, this.headerHeight + this.padH, ref.currentLeft, ref.currentRight, ref.currentRange, this.chartWidth, this.chartHeight + this.padH, ref.xDiff, [[ref.yAlign.top, ref.yAlign.bottom, ref.currentMaxHeight, ref.currentMinHeight], [ref.yAlign2.top, ref.yAlign2.bottom, ref.currentMaxHeight2, ref.currentMinHeight2]], this.legendTextSize, this.textFont, this.getLegendColor, this.getLegendBorderColor, this.getLegendFontColor, this.getBackgroundColor, zoomGrade, this.nightGrade, ref.legendCoordinates, zoomGrade, legendDateFormat, this.zoomState === 'overview');
+      drawLinesLegend(this.ctx, ref.x, [ref.lines, ref.lines2], this.lineLabels, this.lineStates, this.lineGrades, this.lineColors, this.lineWidth, ref.legendPosition, ref.pickedIndex, this.padW, this.headerHeight + this.padH, ref.currentLeft, ref.currentRight, ref.currentRange, this.chartWidth, this.chartHeight + this.padH, ref.xDiff, [[ref.yAlign.top, ref.yAlign.bottom, ref.currentMaxHeight, ref.currentMinHeight], [ref.yAlign2.top, ref.yAlign2.bottom, ref.currentMaxHeight2, ref.currentMinHeight2]], this.legendTextSize, this.textFont, this.getLegendColor, this.getLegendBorderColor, this.getLegendFontColor, this.getBackgroundColor, zoomGrade, this.nightGrade, ref.legendCoordinates, zoomGrade, legendDateFormat, ref === this);
     }
   }, {
     key: "calcYAlignment",
@@ -2462,17 +2635,17 @@ function (_AnimatableChart) {
   }, {
     key: "drawChart",
     value: function drawChart(ref, shrink, yAxisdateFormat, legendDateFormat, zoomGrade) {
-      drawStackedBars(this.ctx, ref.x, ref.bars, ref.summedBars, this.lineGrades, this.lineGrades, this.lineColors, this.chartWidth, this.chartHeight + this.padH, this.padW, this.headerHeight, ref.pickedIndex, ref.currentLeft, ref.currentRight, ref.currentMaxHeight, zoomGrade, this.nightGrade, shrink);
+      drawStackedBars(this.ctx, ref.x, ref.bars, ref.summedBars, this.lineGrades, this.lineColors, this.chartWidth, this.chartHeight + this.padH, this.padW, this.headerHeight, ref.pickedIndex, ref.currentLeft, ref.currentRight, ref.currentMaxHeight, zoomGrade, this.nightGrade, shrink);
     }
   }, {
     key: "drawPreview",
     value: function drawPreview(ref, shrink, yAxisdateFormat, legendDateFormat, zoomGrade) {
-      drawStackedBars(this.ctx, ref.x, ref.bars, ref.fullSummedBars.slice(0), this.lineGrades, this.lineGrades, this.lineColors, this.chartWidth, this.previewHeight, this.padW, this.previewOffsetH, 0, 0, 1, ref.maxHeight, zoomGrade, shrink);
+      drawStackedBars(this.ctx, ref.x, ref.bars, ref.fullSummedBars.slice(0), this.lineGrades, this.lineColors, this.chartWidth, this.previewHeight, this.padW, this.previewOffsetH, 0, 0, 1, ref.maxHeight, zoomGrade, shrink);
     }
   }, {
     key: "drawLegend",
     value: function drawLegend(ref, shrink, yAxisdateFormat, legendDateFormat, zoomGrade) {
-      drawLinesLegend(this.ctx, ref.x, [ref.bars], this.lineLabels, this.lineStates, this.lineGrades, this.lineColors, this.lineWidth, ref.legendPosition, ref.pickedIndex, this.padW, this.headerHeight + this.padH, ref.currentLeft, ref.currentRight, ref.currentRange, this.chartWidth, this.chartHeight + this.padH, ref.xDiff, [[0, 0, 0, 0]], this.legendTextSize, this.textFont, this.getLegendColor, this.getLegendBorderColor, this.getLegendFontColor, this.getBackgroundColor, zoomGrade, this.nightGrade, ref.legendCoordinates, zoomGrade, legendDateFormat, this.zoomState === 'overview');
+      drawLinesLegend(this.ctx, ref.x, [ref.bars], this.lineLabels, this.lineStates, this.lineGrades, this.lineColors, this.lineWidth, ref.legendPosition, ref.pickedIndex, this.padW, this.headerHeight + this.padH, ref.currentLeft, ref.currentRight, ref.currentRange, this.chartWidth, this.chartHeight + this.padH, ref.xDiff, [[0, 0, 0, 0]], this.legendTextSize, this.textFont, this.getLegendColor, this.getLegendBorderColor, this.getLegendFontColor, this.getBackgroundColor, zoomGrade, this.nightGrade, ref.legendCoordinates, zoomGrade, legendDateFormat, ref === this);
     }
   }, {
     key: "calc",
@@ -2651,7 +2824,7 @@ function (_StackedBarChart) {
         }
       }
 
-      drawLinesLegend(this.ctx, ref.x, [ref.lines], ref.lineLabels, ref.lineStates, ref.lineGrades, ref.lineColors, this.lineWidth, ref.legendPosition, ref.pickedIndex, this.padW, this.headerHeight + this.padH, ref.currentLeft, ref.currentRight, ref.currentRange, this.chartWidth, this.chartHeight + this.padH, ref.xDiff, [[ref.yAlign.top, ref.yAlign.bottom, ref.currentMaxHeight, ref.currentMinHeight]], this.legendTextSize, this.textFont, this.getLegendColor, this.getLegendBorderColor, this.getLegendFontColor, this.getBackgroundColor, zoomGrade, this.nightGrade, ref.legendCoordinates, zoomGrade, legendDateFormat, this.zoomState === 'overview');
+      drawLinesLegend(this.ctx, ref.x, [ref.lines], ref.lineLabels, ref.lineStates, ref.lineGrades, ref.lineColors, this.lineWidth, ref.legendPosition, ref.pickedIndex, this.padW, this.headerHeight + this.padH, ref.currentLeft, ref.currentRight, ref.currentRange, this.chartWidth, this.chartHeight + this.padH, ref.xDiff, [[ref.yAlign.top, ref.yAlign.bottom, ref.currentMaxHeight, ref.currentMinHeight]], this.legendTextSize, this.textFont, this.getLegendColor, this.getLegendBorderColor, this.getLegendFontColor, this.getBackgroundColor, zoomGrade, this.nightGrade, ref.legendCoordinates, zoomGrade, legendDateFormat, ref === this);
     }
   }, {
     key: "drawCheckboxes",
@@ -2662,22 +2835,6 @@ function (_StackedBarChart) {
 
 
       utils_drawCheckboxes(this.ctx, this.padW, ref.checkboxesOffsetH, this.chartWidth, ref.checkboxes, this.checkboxHeight, this.checkboxRadius, this.checkboxMargin, this.textFont, this.nightGrade, zoomGrade);
-    }
-  }, {
-    key: "calc",
-    value: function calc(ref) {
-      bar_get(bar_getPrototypeOf(BarChart.prototype), "calc", this).call(this, ref);
-
-      this.calcHeight(ref);
-      this.calcYAlignment(ref);
-    }
-  }, {
-    key: "calcYAlignment",
-    value: function calcYAlignment(ref) {
-      var chartHeight = this.chartHeight + this.padH;
-      var linesDiff = chartHeight / 6;
-
-      utils_calcYAlignment(ref.toMaxHeight, ref.toMinHeight, chartHeight - this.padH, this.padH, chartHeight - linesDiff, linesDiff, chartHeight, ref.yAlign);
     }
   }, {
     key: "calcHeight",
@@ -2816,9 +2973,17 @@ function pie_typeof(obj) { if (typeof Symbol === "function" && typeof Symbol.ite
 
 function pie_classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
 
+function pie_defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } }
+
+function pie_createClass(Constructor, protoProps, staticProps) { if (protoProps) pie_defineProperties(Constructor.prototype, protoProps); if (staticProps) pie_defineProperties(Constructor, staticProps); return Constructor; }
+
 function pie_possibleConstructorReturn(self, call) { if (call && (pie_typeof(call) === "object" || typeof call === "function")) { return call; } return pie_assertThisInitialized(self); }
 
 function pie_assertThisInitialized(self) { if (self === void 0) { throw new ReferenceError("this hasn't been initialised - super() hasn't been called"); } return self; }
+
+function pie_get(target, property, receiver) { if (typeof Reflect !== "undefined" && Reflect.get) { pie_get = Reflect.get; } else { pie_get = function _get(target, property, receiver) { var base = pie_superPropBase(target, property); if (!base) return; var desc = Object.getOwnPropertyDescriptor(base, property); if (desc.get) { return desc.get.call(receiver); } return desc.value; }; } return pie_get(target, property, receiver || target); }
+
+function pie_superPropBase(object, property) { while (!Object.prototype.hasOwnProperty.call(object, property)) { object = pie_getPrototypeOf(object); if (object === null) break; } return object; }
 
 function pie_getPrototypeOf(o) { pie_getPrototypeOf = Object.setPrototypeOf ? Object.getPrototypeOf : function _getPrototypeOf(o) { return o.__proto__ || Object.getPrototypeOf(o); }; return pie_getPrototypeOf(o); }
 
@@ -2828,16 +2993,247 @@ function pie_setPrototypeOf(o, p) { pie_setPrototypeOf = Object.setPrototypeOf |
 
 
 
-var PieChart =
+
+var pie_PieChart =
 /*#__PURE__*/
 function (_AnimatableChart) {
   pie_inherits(PieChart, _AnimatableChart);
 
   function PieChart(data, options) {
+    var _this;
+
     pie_classCallCheck(this, PieChart);
 
-    return pie_possibleConstructorReturn(this, pie_getPrototypeOf(PieChart).call(this, data, options));
+    _this = pie_possibleConstructorReturn(this, pie_getPrototypeOf(PieChart).call(this, data, options));
+    _this.areas = getAreas(data.overview);
+
+    _this.calcProcents(pie_assertThisInitialized(_this));
+
+    _this.currentMaxHeight = _this.fromMaxHeight = _this.toMaxHeight = 100;
+    _this.maxHeight = 100;
+    _this.currentMinHeight = _this.fromMinHeight = _this.toMinHeight = 0;
+    _this.minHeight = 0;
+    _this.maxIndex = _this.x.length - 1;
+    _this.yAlign = {
+      top: 0,
+      bottom: 0,
+      max: 75,
+      min: 25
+    };
+    _this.shares = {};
+    _this.coords = {
+      centerX: 0,
+      centerY: 0,
+      angles: {}
+    };
+
+    for (var label in _this.lineLabels) {
+      _this.shares[label] = {
+        procent: 0,
+        sum: 0,
+        grade: 0
+      };
+      _this.coords.angles[label] = {
+        from: 0,
+        to: 0
+      };
+    }
+
+    return _this;
   }
+
+  pie_createClass(PieChart, [{
+    key: "drawView",
+    value: function drawView(ref, shrink, yAxisdateFormat, legendDateFormat, zoomGrade) {
+      this.drawChart(ref, shrink, yAxisdateFormat, legendDateFormat, zoomGrade);
+      this.drawGrid(ref, shrink, yAxisdateFormat, legendDateFormat, zoomGrade);
+      this.drawDates(ref, shrink, yAxisdateFormat, legendDateFormat, zoomGrade);
+      this.drawPreview(ref, shrink, yAxisdateFormat, legendDateFormat, zoomGrade);
+      this.drawScroll(ref, shrink, yAxisdateFormat, legendDateFormat, zoomGrade);
+
+      if (this.legendShown && (zoomGrade < 1 || this.legendPosition >= this.currentLeft && this.legendPosition <= this.currentRight)) {
+        this.drawLegend(ref, shrink, yAxisdateFormat, legendDateFormat, zoomGrade);
+      }
+    }
+  }, {
+    key: "drawGrid",
+    value: function drawGrid(ref, shrink, yAxisdateFormat, legendDateFormat, zoomGrade) {
+      if (ref === this) {
+        utils_drawGrid(this.ctx, this.padW, this.headerHeight, this.chartWidth, this.chartHeight + this.padH, 3, ref.fromMaxHeight, ref.toMaxHeight, ref.currentMaxHeight, ref.fromMinHeight, ref.toMinHeight, ref.currentMinHeight, ref.yAlign.max, ref.yAlign.min, ref.yAlign.top, ref.yAlign.bottom, this.getGridColor, this.getAxisColor, false, 1, this.gridLineWidth, this.textSize, this.nightGrade, zoomGrade);
+      }
+    }
+  }, {
+    key: "drawChart",
+    value: function drawChart(ref, shrink, yAxisdateFormat, legendDateFormat, zoomGrade) {
+      if (ref === this) {
+        drawArea(this.ctx, this.x, this.areas, this.summedAreas, this.referenceSummedAreas, this.lineGrades, this.lineColors, this.chartWidth, this.chartHeight + this.padH, this.padW, this.headerHeight, this.leftIndex, this.rightIndex, this.currentLeft, this.currentRight, zoomGrade, this.nightGrade, shrink);
+      } else {
+        drawPie(this.ctx, this.lineLabels, this.lineGrades, this.lineColors, this.padW, this.headerHeight + 2 * this.padW, this.chartWidth, this.chartHeight / 2, this.shares, zoomGrade, this.coords);
+      }
+    }
+  }, {
+    key: "drawDates",
+    value: function drawDates(ref, shrink, yAxisdateFormat, legendDateFormat, zoomGrade) {
+      if (ref === this) {
+        // redraw only if moving
+        pie_get(pie_getPrototypeOf(PieChart.prototype), "drawDates", this).call(this, ref, shrink, yAxisdateFormat, legendDateFormat, zoomGrade);
+      }
+    }
+  }, {
+    key: "drawPreview",
+    value: function drawPreview(ref, shrink, yAxisdateFormat, legendDateFormat, zoomGrade) {
+      drawArea(this.ctx, this.x, this.areas, this.fullSummedAreas, this.referenceFullSummedAreas, this.lineGrades, this.lineColors, this.chartWidth, this.previewHeight, this.padW, this.previewOffsetH, 1, this.maxIndex, 0, 1, zoomGrade, this.nightGrade, shrink);
+    }
+  }, {
+    key: "drawLegend",
+    value: function drawLegend(ref, shrink, yAxisdateFormat, legendDateFormat, zoomGrade) {
+      if (ref === this) {
+        drawRuller(this.ctx, this.padW, this.headerHeight, this.rullerWidth, this.chartHeight + this.padH, this.chartWidth, this.currentLeft, this.currentRight, this.currentRange, this.legendPosition, this.getRullerColor, zoomGrade, this.nightGrade);
+        drawLinesLegend(this.ctx, this.x, [this.areas], this.lineLabels, this.lineStates, this.lineGrades, this.lineColors, this.lineWidth, this.legendPosition, this.pickedIndex, this.padW, this.headerHeight + this.padH, this.currentLeft, this.currentRight, this.currentRange, this.chartWidth, this.chartHeight + this.padH, this.xDiff, [[0, 0, 0, 0]], this.legendTextSize, this.textFont, this.getLegendColor, this.getLegendBorderColor, this.getLegendFontColor, this.getBackgroundColor, zoomGrade, this.nightGrade, this.legendCoordinates, zoomGrade, legendDateFormat, ref === this);
+      }
+    }
+  }, {
+    key: "calc",
+    value: function calc(ref) {
+      pie_get(pie_getPrototypeOf(PieChart.prototype), "calc", this).call(this, ref);
+
+      this.calcProcents(ref);
+    }
+  }, {
+    key: "calcDates",
+    value: function calcDates(ref) {
+      if (ref === this) {
+        pie_get(pie_getPrototypeOf(PieChart.prototype), "calcDates", this).call(this, ref);
+      }
+    }
+  }, {
+    key: "calcProcents",
+    value: function calcProcents(ref) {
+      ref.leftIndex = getLowerIndex(this.x, ref.currentLeft - this.padW / this.chartWidth);
+      ref.rightIndex = getUpperIndex(this.x, ref.currentRight + this.padW / this.chartWidth);
+      this.fullSummedAreas = sumBars(this.x, this.areas, this.lineGrades, 0, 1);
+      this.summedAreas = this.fullSummedAreas.slice(Math.max(this.leftIndex - 1, 0), this.rightIndex + 1);
+      this.referenceSummedAreas = this.summedAreas.slice(0);
+      this.referenceFullSummedAreas = this.fullSummedAreas.slice(0);
+
+      if (ref !== this) {
+        this.calcShares(ref);
+      }
+    }
+  }, {
+    key: "calcShares",
+    value: function calcShares(ref) {
+      var total = 0;
+      var _iteratorNormalCompletion = true;
+      var _didIteratorError = false;
+      var _iteratorError = undefined;
+
+      try {
+        for (var _iterator = this.areas[Symbol.iterator](), _step; !(_iteratorNormalCompletion = (_step = _iterator.next()).done); _iteratorNormalCompletion = true) {
+          var area = _step.value;
+          var areaSum = 0;
+
+          for (var i = ref.leftIndex; i <= ref.rightIndex; i++) {
+            areaSum += area[i];
+          }
+
+          areaSum = areaSum * this.lineGrades[area[0]];
+          total += areaSum;
+          this.shares[area[0]].sum = areaSum;
+        }
+      } catch (err) {
+        _didIteratorError = true;
+        _iteratorError = err;
+      } finally {
+        try {
+          if (!_iteratorNormalCompletion && _iterator.return != null) {
+            _iterator.return();
+          }
+        } finally {
+          if (_didIteratorError) {
+            throw _iteratorError;
+          }
+        }
+      }
+
+      for (var label in this.shares) {
+        this.shares[label].procent = this.shares[label].sum / total;
+      }
+    }
+  }, {
+    key: "clickPie",
+    value: function clickPie(e) {
+      if (this.zoomState === 'overview') {
+        return;
+      }
+
+      var border = this.getBoundingClientRect();
+      var canvasX = fromCssSize(e.clientX - border.left);
+      var canvasY = fromCssSize(e.clientY - border.top);
+
+      if (canvasY < this.headerHeight || canvasY > this.headerHeight + this.chartHeight) {
+        return;
+      }
+
+      var angle = Math.atan((canvasX - this.coords.centerX) / (canvasY - this.coords.centerY));
+
+      if (canvasY > this.coords.centerY) {
+        angle = Math.PI / 2 - angle;
+      } else {
+        angle = Math.PI * 3 / 2 - angle;
+      }
+
+      var found = null;
+
+      for (var label in this.coords.angles) {
+        var a = this.coords.angles[label];
+
+        if (angle >= a.from && angle <= a.to) {
+          found = label;
+        }
+      }
+
+      if (!found) {
+        angle = angle + 2 * Math.PI;
+
+        for (var _label in this.coords.angles) {
+          var _a = this.coords.angles[_label];
+
+          if (angle >= _a.from && angle <= _a.to) {
+            found = _label;
+          }
+        }
+      }
+
+      if (found) {
+        this.addAnimation(this.shares[found], 'grade', 1, this.animationDurationMs, 'angle' + found);
+
+        for (var _label2 in this.shares) {
+          if (_label2 === found) {
+            continue;
+          }
+
+          this.addAnimation(this.shares[_label2], 'grade', 0, this.animationDurationMs, 'angle' + _label2);
+        }
+
+        this.animate();
+      }
+    }
+  }, {
+    key: "onMouseUp",
+    value: function onMouseUp(e) {
+      pie_get(pie_getPrototypeOf(PieChart.prototype), "onMouseUp", this).call(this, e);
+
+      this.clickPie(e);
+    }
+  }, {
+    key: "onTouchEnd",
+    value: function onTouchEnd(e) {
+      pie_get(pie_getPrototypeOf(PieChart.prototype), "onMouseUp", this).call(this, e);
+
+      this.clickPie(e);
+    }
+  }]);
 
   return PieChart;
 }(animatable_chart_AnimatedCanvas);
@@ -2868,7 +3264,7 @@ function (_AnimatableChart) {
           previewPadH: 4,
           previewHeight: 32,
           previewLineWidth: 1,
-          checkboxesAreaHeight: 80,
+          checkboxesAreaHeight: 120,
           checkboxHeight: 28,
           checkboxRadius: 14,
           checkboxMargin: 8,
@@ -2884,7 +3280,7 @@ function (_AnimatableChart) {
           headerHeight: 20
         });
       } else if (overview.stacked && overview.percentage) {
-        chart = new PieChart(data, {
+        chart = new pie_PieChart(data, {
           width: parent.offsetWidth,
           height: 320,
           fontFamily: 'Helvetica, sans-serif',
@@ -2896,7 +3292,7 @@ function (_AnimatableChart) {
           previewPadH: 4,
           previewHeight: 32,
           previewLineWidth: 1,
-          checkboxesAreaHeight: 80,
+          checkboxesAreaHeight: 120,
           checkboxHeight: 28,
           checkboxRadius: 14,
           checkboxMargin: 8,
@@ -2924,7 +3320,7 @@ function (_AnimatableChart) {
           previewPadH: 4,
           previewHeight: 32,
           previewLineWidth: 1,
-          checkboxesAreaHeight: 80,
+          checkboxesAreaHeight: 120,
           checkboxHeight: 28,
           checkboxRadius: 14,
           checkboxMargin: 8,
@@ -2954,7 +3350,7 @@ function (_AnimatableChart) {
           previewPadH: 4,
           previewHeight: 32,
           previewLineWidth: 1,
-          checkboxesAreaHeight: 80,
+          checkboxesAreaHeight: 120,
           checkboxHeight: 28,
           checkboxRadius: 14,
           checkboxMargin: 8,
@@ -2982,7 +3378,7 @@ function (_AnimatableChart) {
           previewPadH: 4,
           previewHeight: 32,
           previewLineWidth: 1,
-          checkboxesAreaHeight: 80,
+          checkboxesAreaHeight: 120,
           checkboxHeight: 28,
           checkboxRadius: 14,
           checkboxMargin: 8,

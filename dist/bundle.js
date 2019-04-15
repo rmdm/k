@@ -524,7 +524,7 @@ function drawRuller(ctx, offsetW, offsetH, rullerWidth, rullerHeight, width, lef
   ctx.lineTo(leftOffset, offsetH + rullerHeight);
   ctx.stroke();
 }
-function drawLinesLegend(ctx, x, lineKinds, lineLabels, lineStates, lineGrades, lineColors, lineWidth, position, closestIndex, offsetW, offsetH, left, right, range, width, height, xDiff, paramKinds, textSize, textFont, getLegendColor, getLegendBorderColor, getLegendFontColor, getBackgroundColor, alphaGrade, nightGrade, coordinates, zoomGrade, format, drawArrow, drawAll) {
+function drawLinesLegend(ctx, x, lineKinds, lineLabels, lineStates, lineGrades, lineColors, lineWidth, position, closestIndex, offsetW, offsetH, left, right, range, width, height, xDiff, paramKinds, textSize, textFont, getLegendColor, getLegendBorderColor, getLegendFontColor, getBackgroundColor, alphaGrade, nightGrade, coordinates, zoomGrade, format, drawArrow, drawAll, drawPercents) {
   var ctxFont = ctx.font;
   var legendFont = textSize + 'px ' + textFont;
   var timestamp = Math.floor(x[1] + xDiff * position);
@@ -533,8 +533,10 @@ function drawLinesLegend(ctx, x, lineKinds, lineLabels, lineStates, lineGrades, 
   ctx.font = 'bold ' + legendFont;
   var contentWidth = ctx.measureText(text).width + 3 * legendPadding;
   var contentHeight = textSize;
+  var percentsWidth = ctx.measureText('99%').width;
   var maxValueWidth = 0;
   var lowestTopOffset = height;
+  var totalValues = 0;
 
   for (var i = 0; i < lineKinds.length; i++) {
     var lines = lineKinds[i];
@@ -550,6 +552,7 @@ function drawLinesLegend(ctx, x, lineKinds, lineLabels, lineStates, lineGrades, 
         if (lineStates[label] || lineGrades[label] > 0) {
           var val = line[closestIndex];
           var name = lineLabels[label];
+          totalValues += val;
           ctx.font = legendFont;
           var nameWidth = ctx.measureText(name).width;
           ctx.font = 'bold ' + legendFont;
@@ -606,6 +609,10 @@ function drawLinesLegend(ctx, x, lineKinds, lineLabels, lineStates, lineGrades, 
     contentHeight += legendPadding + textSize;
   }
 
+  if (drawPercents) {
+    contentWidth += percentsWidth + legendPadding;
+  }
+
   var legendWidth = contentWidth + 2 * legendPadding;
   var legendHeight = contentHeight + 2 * legendPadding;
   var legendOffsetLeft = leftOffset - legendWidth / 2;
@@ -654,7 +661,7 @@ function drawLinesLegend(ctx, x, lineKinds, lineLabels, lineStates, lineGrades, 
   }
 
   textOffsetH += legendPadding + textSize;
-  var sum = 0;
+  var lOffset = coordinates.x;
   var _iteratorNormalCompletion4 = true;
   var _didIteratorError4 = false;
   var _iteratorError4 = undefined;
@@ -674,10 +681,18 @@ function drawLinesLegend(ctx, x, lineKinds, lineLabels, lineStates, lineGrades, 
           if (lineStates[_label] || lineGrades[_label] > 0) {
             var value = _line[closestIndex];
             var _name = lineLabels[_label];
-            sum += value;
+
+            if (drawPercents) {
+              ctx.font = 'bold ' + legendFont;
+              ctx.fillStyle = getLegendFontColor(nightGrade, alphaGrade);
+              var percent = value / totalValues * 100 | 0;
+              ctx.fillText(percent + '%', coordinates.x + legendPadding + (percent < 10 ? percentsWidth / 3 : 0), textOffsetH);
+              lOffset = coordinates.x + percentsWidth + legendPadding;
+            }
+
             ctx.font = legendFont;
             ctx.fillStyle = getLegendFontColor(nightGrade, lineGrades[_label] * alphaGrade);
-            ctx.fillText(_name, coordinates.x + legendPadding, textOffsetH);
+            ctx.fillText(_name, lOffset + legendPadding, textOffsetH);
             ctx.font = 'bold ' + legendFont;
             ctx.fillStyle = lineColors[_label](lineGrades[_label] * zoomGrade);
             var _valWidth2 = ctx.measureText(value).width;
@@ -722,8 +737,8 @@ function drawLinesLegend(ctx, x, lineKinds, lineLabels, lineStates, lineGrades, 
     ctx.fillText('All', coordinates.x + legendPadding, textOffsetH);
     ctx.font = 'bold ' + legendFont;
     ctx.fillStyle = color;
-    var _valWidth = ctx.measureText(sum).width;
-    ctx.fillText(sum, coordinates.x + legendPadding + contentWidth - _valWidth, textOffsetH);
+    var _valWidth = ctx.measureText(totalValues).width;
+    ctx.fillText(totalValues, coordinates.x + legendPadding + contentWidth - _valWidth, textOffsetH);
   }
 
   ctx.font = ctxFont;
@@ -914,7 +929,7 @@ function drawArea(ctx, x, areas, summedAreas, referenceSummedAreas, lineGrades, 
     ctx.fill();
   }
 }
-function drawPie(ctx, lineLabels, lineGrades, lineColors, offsetW, offsetH, width, radius, shares, zoomGrade, coords) {
+function drawPie(ctx, lineLabels, lineGrades, lineColors, offsetW, offsetH, width, radius, shares, zoomGrade, coords, getLegendColor, getLegendBorderColor, getLegendFontColor, nightGrade, textSize, textFont) {
   var centerX = offsetW + width / 2;
   var centerY = offsetH + radius;
   coords.centerX = centerX;
@@ -924,7 +939,6 @@ function drawPie(ctx, lineLabels, lineGrades, lineColors, offsetW, offsetH, widt
 
   for (var label in shares) {
     var share = shares[label];
-    ctx.fillStyle = lineColors[label](zoomGrade);
     var angle = share.procent * 2 * Math.PI;
     var from = lastAngle;
     var to = lastAngle + angle;
@@ -937,17 +951,48 @@ function drawPie(ctx, lineLabels, lineGrades, lineColors, offsetW, offsetH, widt
       yOffset = Math.sin(middle) * 30 * share.grade;
     }
 
+    ctx.fillStyle = lineColors[label](zoomGrade);
     ctx.beginPath();
     ctx.arc(centerX + xOffset, centerY + yOffset, radius, from, to);
     ctx.lineTo(centerX + xOffset, centerY + yOffset);
     ctx.closePath();
     ctx.fill();
+
+    if (share.grade > 0) {
+      var _middle = (to + from) / 2;
+
+      var offsetLeft = Math.cos(_middle) * radius / 2;
+      var offsetTop = Math.sin(_middle) * radius / 2;
+      drawPieLegend(ctx, lineLabels[label], share.sum, centerX + offsetLeft, centerY + offsetTop, getLegendColor, getLegendBorderColor, getLegendFontColor, nightGrade, zoomGrade, textSize, textFont, lineColors[label]);
+    }
+
     coords.angles[label] = {
       from: from,
       to: to
     };
     lastAngle = to;
   }
+}
+function drawPieLegend(ctx, text, value, offsetLeft, offsetTop, getLegendColor, getLegendBorderColor, getLegendFontColor, nightGrade, zoomGrade, textSize, textFont, getColor) {
+  console.log(text, value, offsetLeft, offsetTop, getLegendColor, getLegendBorderColor, nightGrade, zoomGrade, textSize, textFont);
+  var ctxFont = ctx.font;
+  var legendFont = textSize + 'px ' + textFont;
+  ctx.fillStyle = getLegendColor(nightGrade, zoomGrade);
+  ctx.strokeStyle = getLegendBorderColor(zoomGrade);
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  var width = ctx.measureText(text + value).width + 5 * legendPadding;
+  drawRoundedRect(ctx, offsetLeft, offsetLeft + width, offsetTop, offsetTop + 2 * legendPadding + textSize, controlRadius, controlRadius);
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+  ctx.font = legendFont;
+  ctx.fillStyle = getLegendFontColor(nightGrade, zoomGrade);
+  ctx.fillText(text, offsetLeft + legendPadding, offsetTop + legendPadding + textSize);
+  ctx.font = 'bold ' + legendFont;
+  ctx.fillStyle = getColor(zoomGrade);
+  ctx.fillText(value, offsetLeft + width - legendPadding - ctx.measureText(value).width, offsetTop + legendPadding + textSize);
+  ctx.font = ctxFont;
 }
 function getLowerIndex(x, procent) {
   var val = x[1] + (x[x.length - 1] - x[1]) * procent;
@@ -2662,7 +2707,8 @@ function (_AnimatableChart) {
   }, {
     key: "drawLegend",
     value: function drawLegend(ref, shrink, yAxisdateFormat, legendDateFormat, zoomGrade) {
-      drawLinesLegend(this.ctx, ref.x, [ref.bars], this.lineLabels, this.lineStates, this.lineGrades, this.lineColors, this.lineWidth, ref.legendPosition, ref.pickedIndex, this.padW, this.headerHeight + this.padH, ref.currentLeft, ref.currentRight, ref.currentRange, this.chartWidth, this.chartHeight + this.padH, ref.xDiff, [[0, 0, 0, 0]], this.legendTextSize, this.textFont, this.getLegendColor, this.getLegendBorderColor, this.getLegendFontColor, this.getBackgroundColor, zoomGrade, this.nightGrade, ref.legendCoordinates, zoomGrade, legendDateFormat, ref === this, true);
+      var showAll = arguments.length > 5 && arguments[5] !== undefined ? arguments[5] : true;
+      drawLinesLegend(this.ctx, ref.x, [ref.bars], this.lineLabels, this.lineStates, this.lineGrades, this.lineColors, this.lineWidth, ref.legendPosition, ref.pickedIndex, this.padW, this.headerHeight + this.padH, ref.currentLeft, ref.currentRight, ref.currentRange, this.chartWidth, this.chartHeight + this.padH, ref.xDiff, [[0, 0, 0, 0]], this.legendTextSize, this.textFont, this.getLegendColor, this.getLegendBorderColor, this.getLegendFontColor, this.getBackgroundColor, zoomGrade, this.nightGrade, ref.legendCoordinates, zoomGrade, legendDateFormat, ref === this, showAll);
     }
   }, {
     key: "calc",
@@ -2815,7 +2861,7 @@ function (_StackedBarChart) {
     key: "drawLegend",
     value: function drawLegend(ref, shrink, yAxisdateFormat, legendDateFormat, zoomGrade) {
       if (ref === this) {
-        return bar_get(bar_getPrototypeOf(BarChart.prototype), "drawLegend", this).call(this, ref, shrink, yAxisdateFormat, legendDateFormat, zoomGrade);
+        return bar_get(bar_getPrototypeOf(BarChart.prototype), "drawLegend", this).call(this, ref, shrink, yAxisdateFormat, legendDateFormat, zoomGrade, false);
       }
 
       drawRuller(this.ctx, this.padW, this.headerHeight + this.padH, this.rullerWidth, this.chartHeight, this.chartWidth, ref.currentLeft, ref.currentRight, ref.currentRange, ref.legendPosition, this.getRullerColor, zoomGrade, this.nightGrade);
@@ -3087,7 +3133,7 @@ function (_AnimatableChart) {
       if (ref === this) {
         drawArea(this.ctx, this.x, this.areas, this.summedAreas, this.referenceSummedAreas, this.lineGrades, this.lineColors, this.chartWidth, this.chartHeight + this.padH, this.padW, this.headerHeight, this.leftIndex, this.rightIndex, this.currentLeft, this.currentRight, zoomGrade, this.nightGrade, shrink);
       } else {
-        drawPie(this.ctx, this.lineLabels, this.lineGrades, this.lineColors, this.padW, this.headerHeight + 2 * this.padW, this.chartWidth, this.chartHeight / 2, this.shares, zoomGrade, this.coords);
+        drawPie(this.ctx, this.lineLabels, this.lineGrades, this.lineColors, this.padW, this.headerHeight + 2 * this.padW, this.chartWidth, this.chartHeight / 2, this.shares, zoomGrade, this.coords, this.getLegendColor, this.getLegendBorderColor, this.getLegendFontColor, this.nightGrade, this.legendTextSize, this.textFont);
       }
     }
   }, {
@@ -3108,7 +3154,7 @@ function (_AnimatableChart) {
     value: function drawLegend(ref, shrink, yAxisdateFormat, legendDateFormat, zoomGrade) {
       if (ref === this) {
         drawRuller(this.ctx, this.padW, this.headerHeight, this.rullerWidth, this.chartHeight + this.padH, this.chartWidth, this.currentLeft, this.currentRight, this.currentRange, this.legendPosition, this.getRullerColor, zoomGrade, this.nightGrade);
-        drawLinesLegend(this.ctx, this.x, [this.areas], this.lineLabels, this.lineStates, this.lineGrades, this.lineColors, this.lineWidth, this.legendPosition, this.pickedIndex, this.padW, this.headerHeight + this.padH, this.currentLeft, this.currentRight, this.currentRange, this.chartWidth, this.chartHeight + this.padH, this.xDiff, [[0, 0, 0, 0]], this.legendTextSize, this.textFont, this.getLegendColor, this.getLegendBorderColor, this.getLegendFontColor, this.getBackgroundColor, zoomGrade, this.nightGrade, this.legendCoordinates, zoomGrade, legendDateFormat, ref === this);
+        drawLinesLegend(this.ctx, this.x, [this.areas], this.lineLabels, this.lineStates, this.lineGrades, this.lineColors, this.lineWidth, this.legendPosition, this.pickedIndex, this.padW, this.headerHeight + this.padH, this.currentLeft, this.currentRight, this.currentRange, this.chartWidth, this.chartHeight + this.padH, this.xDiff, [[0, 0, 0, 0]], this.legendTextSize, this.textFont, this.getLegendColor, this.getLegendBorderColor, this.getLegendFontColor, this.getBackgroundColor, zoomGrade, this.nightGrade, this.legendCoordinates, zoomGrade, legendDateFormat, ref === this, false, true);
       }
     }
   }, {
